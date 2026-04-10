@@ -18,6 +18,11 @@
 5. Подключить Docker sandbox с ограничениями: timeout 5s, memory 128MB, `--network none`.
 6. Вернуть единый результат выполнения: `status`, `stdout`, `stderr`, `exit_code`.
 
+## Интеграция protocollab (обязательно)
+1. Для `array_filter` строить выражение через AST `protocollab.expression`.
+2. Использовать `to_lua(ast)` как единственный путь трансляции `condition` в Lua.
+3. Не допускать строковой подстановки `condition` в обход AST.
+
 ## Ограничения
 1. Никакой генерации кода в обход шаблонов.
 2. Никаких сетевых вызовов из sandbox.
@@ -28,3 +33,4 @@
 2. На валидном YAML код проходит `luac` и выполняется в sandbox.
 3. Ошибки selector/`luac`/sandbox возвращаются в API в контролируемом формате.
 4. Переданы: каталог шаблонов, правила selector, контракт результата sandbox, стабильные E2E-кейсы.
+5. Для `array_filter` подтверждён путь `protocollab.expression` → AST → `to_lua`.

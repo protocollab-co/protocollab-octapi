@@ -11,6 +11,12 @@
 5. Вернуть единый формат ошибок валидации: `field`, `message`, `expected`, `got`, `hint`.
 6. Для `array_filter` добавить проверку `condition` через `protocollab.expression`.
 
+## Интеграция protocollab (обязательно)
+1. Подключить `yaml_serializer.load_yaml` для безопасной загрузки YAML.
+2. Подключить `jsonschema_validator` для проверки контракта `mws_operation.schema.json`.
+3. Для `array_filter` использовать `protocollab.expression.validate_expr(condition)`.
+4. Зафиксировать в логах источник ошибки: schema validation или expression validation.
+
 ## Ограничения
 1. Только локальный inference, без внешних AI API.
 2. Без enterprise-компонентов (cache, RAG, orchestration).
@@ -21,6 +27,7 @@
 2. `POST /generate` возвращает валидный YAML или структурированную ошибку.
 3. Минимум 3 тестовых запроса проходят с ожидаемым результатом.
 4. Логи объясняют, что вернула модель и почему ответ принят/отклонён.
+5. Валидация YAML и `condition` проходит через компоненты `protocollab`.
 
 ## Передача в День 2
 1. Актуальный YAML-контракт.
