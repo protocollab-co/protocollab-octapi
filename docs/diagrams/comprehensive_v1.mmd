@@ -1,0 +1,169 @@
+flowchart TB
+
+    subgraph Input["1. Вход"]
+        USER_INPUT@{ shape: "hex", label: "Natural Language Query" }
+    end
+
+    subgraph EnterpriseLayer["Enterprise Layer (Security, Audit, Observability)"]
+        Auth["Authentication / Authorization"]
+        AuditLogger["Audit Logger"]
+        Metrics["Prometheus Metrics"]
+        StateManager["Session State Manager"]
+        TemplateRegistry["Template Registry (Jinja2)"]
+        OracleStorage["Oracle Storage (input/output pairs per template)"]
+        FuncTest["Functional Testing (Lua)"]
+        ErrorHandler["Global Error Handler (user retry limit=3)"]
+        VersionStorage["Version Storage (hash + prompt version + template version)"]
+    end
+
+    subgraph Classification["2. Классификация запроса"]
+        CLASSIFIER{"Rule-based Classifier"}
+    end
+
+    subgraph Cache["3. Semantic Cache"]
+        CACHE_CHECK{"Cache hit?"}
+        CACHE_STORAGE[(Embedding Cache)]
+    end
+
+    subgraph Orchestration["4. Оркестрация (A2A)"]
+        ORCHESTRATOR@{ shape: "diam", label: "Orchestrator Agent" }
+    end
+
+    subgraph Collab["5. CollabLayer (сложные запросы)"]
+        DECOMPOSE["Decompose Query"]
+        DAG["DAG of Subtasks"]
+        COMPOSE["Compose Results"]
+    end
+
+    subgraph RAGBlock["6. RAG (Retrieval)"]
+        RAG["Retrieval (similar artifacts)"]
+    end
+
+    subgraph RateLimitBlock["7. Rate Limiter"]
+        RATE_LIMIT["Rate Limiter (queue)"]
+    end
+
+    subgraph Generation["8. Генерация метаданных (артефактов)"]
+        direction LR
+        LIGHT_AGENT["Light Agent (1.5B)"]
+        HEAVY_AGENT["Heavy Agent (7B+)"]
+    end
+
+    subgraph Artifact["9. Артефакт"]
+        METADATA@{ shape: "hex", label: "Metadata (YAML Artifact)" }
+        NORMALIZER["Deterministic Normalizer (canonical YAML)"]
+    end
+
+    subgraph ValidationLoop["10. ReAct-цикл валидации (до 3 итераций)"]
+        VALIDATOR["Metadata Validator (JSON Schema)"]
+        REACT_CHECK{"ReAct: Valid?"}
+        REACT_INC["Increment attempt"]
+        REACT_LIMIT{"Attempts < 3?"}
+        ESCALATE["Escalate to Heavy"]
+        ERROR_FEEDBACK["Structured Error Feedback (field, expected, got, hint)"]
+    end
+
+    subgraph TemplateSelection["11. Выбор шаблона"]
+        TEMPLATE_SELECTOR@{ shape: "diam", label: "Template Selector" }
+        JINJA["Jinja2 Generator"]
+    end
+
+    subgraph CodeGen["12. Генерация кода"]
+        CODE["Lua Code"]
+    end
+
+    subgraph Projections["13. Проекции"]
+        TESTS["Unit Tests"]
+        DOCS["Documentation"]
+        MOCKS["Mocks"]
+    end
+
+    subgraph Sandbox["14. Безопасное исполнение"]
+        STATIC["Static Analyzer (luac)"]
+        DOCKER["Sandbox (Docker)"]
+    end
+
+    subgraph Output["15. Выход"]
+        LUA_SCRIPT["Lua Script for MWS Octapi"]
+    end
+
+    %% Основной поток
+    USER_INPUT --> Auth --> CLASSIFIER
+
+    CLASSIFIER -->|simple / complex / low confidence| CACHE_CHECK
+    CLASSIFIER -->|vanilla| VANILLA_PATH
+
+    CACHE_CHECK -->|miss| ORCHESTRATOR
+    CACHE_CHECK -->|hit| CACHE_STORAGE -->|cached artifact| METADATA
+    CACHE_STORAGE -.->|store| VersionStorage
+
+    ORCHESTRATOR -.-> StateManager
+    ORCHESTRATOR -.-> TemplateRegistry
+
+    ORCHESTRATOR -->|simple mode| LIGHT_AGENT
+    ORCHESTRATOR -->|complex / low confidence mode| DECOMPOSE
+
+    DECOMPOSE --> DAG --> COMPOSE
+
+    %% RAG + Rate Limiter: сначала RAG, потом лимитер перед генерацией
+    LIGHT_AGENT --> RAG
+    HEAVY_AGENT --> RAG
+    COMPOSE --> RAG
+    RAG -- success --> RATE_LIMIT
+    RAG -- fail/timeout --> RATE_LIMIT   %% fallback: генерация без RAG
+
+    RATE_LIMIT --> METADATA
+
+    %% Нормализация артефакта
+    METADATA --> NORMALIZER --> VALIDATOR
+
+    %% Валидация и аудит
+    VALIDATOR --> AuditLogger
+    VALIDATOR --> REACT_CHECK
+
+    %% ReAct-цикл с обратной связью
+    REACT_CHECK -->|valid| TEMPLATE_SELECTOR
+    REACT_CHECK -->|invalid| REACT_INC --> REACT_LIMIT
+    REACT_LIMIT -->|attempts < 3| ERROR_FEEDBACK
+    ERROR_FEEDBACK -->|structured error| LIGHT_AGENT
+    REACT_LIMIT -->|attempts >= 3| ESCALATE --> HEAVY_AGENT
+    REACT_LIMIT --> Metrics
+
+    %% Выбор шаблона (strict: только проверенные шаблоны)
+    TEMPLATE_SELECTOR -->|template found| JINJA --> CODE
+    TEMPLATE_SELECTOR -->|no template| ERROR_NO_TEMPLATE["Error: no template (strict mode)"]
+    ERROR_NO_TEMPLATE --> ErrorHandler
+    TEMPLATE_SELECTOR -.-> TemplateRegistry
+
+    %% Проекции и тестирование
+    CODE --> TESTS & DOCS & MOCKS
+    CODE --> STATIC
+    STATIC -- success --> DOCKER
+    STATIC -- fail --> ErrorHandler
+
+    DOCKER -- success --> FuncTest
+    DOCKER -- fail --> ErrorHandler
+
+    %% Функциональные тесты с оракулом
+    FuncTest --> OracleStorage   %% чтение оракула
+    FuncTest -- passed --> LUA_SCRIPT
+    FuncTest -- passed --> VersionStorage   %% единственное сохранение (только после тестов)
+    FuncTest -- failed --> ErrorHandler
+    TESTS --> FuncTest
+
+    %% Глобальная обработка ошибок
+    ErrorHandler --> AuditLogger
+    ErrorHandler --> Metrics
+    ErrorHandler -->|user message after retries| USER_INPUT
+
+    %% Red fallback path (vanilla) - только для сравнения, НЕ для production
+    subgraph VanillaPath["Vanilla Fallback (for comparison only, NOT for production)"]
+        VANILLA_GEN["Vanilla Generate (Heavy LLM 7B+)"]
+        VANILLA_CODE["Lua Code (direct)"]
+    end
+    CLASSIFIER -->|vanilla| VANILLA_GEN
+    VANILLA_GEN --> VANILLA_CODE --> STATIC
+
+    %% Стили для red fallback
+    linkStyle 18,19,20 stroke:#FF0000,stroke-width:2px
+    style VanillaPath fill:#FFCCCC,stroke:#FF0000,stroke-width:2px,stroke-dasharray: 5 5

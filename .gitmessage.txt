@@ -1,0 +1,33 @@
+# <type>(<scope>): <subject>
+# <subject> — short description (up to 50 chars, imperative mood)
+
+# <body> — details with bullet points (-), each line up to 72 chars
+
+# <footer> — references to issues, breaking changes
+
+
+# Примеры, релевантные проекту (все комментарии на русском):
+#
+# feat(api): добавить эндпоинт /generate в FastAPI
+# - реализован вызов Ollama для генерации YAML
+# - добавлена валидация через jsonschema
+#
+# fix(lua): исправить таймаут песочницы в Docker
+# - ограничено время выполнения Lua-скрипта до 5 секунд
+# - исправлена обработка stderr/stdout
+#
+# docs(readme): обновить инструкции по запуску через docker-compose
+# - добавлены шаги по установке Ollama и моделей qwen2.5-coder
+#
+# refactor(jinja): вынести шаблоны для file_ops/http_request/json_parse
+# - шаблоны вынесены в отдельные файлы
+# - реализован template selector
+#
+# chore(ui): добавить подсветку синтаксиса для YAML и Lua
+# - интеграция highlight.js для отображения кода в интерфейсе
+#
+# test(api): добавить тесты для /health и /ask
+# - покрытие типовых сценариев
+# - проверка ошибок валидации
+
+# Types: feat, fix, docs, style, refactor, test, chore, perf, ci, build
