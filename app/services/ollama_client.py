@@ -17,7 +17,7 @@ class OllamaClient:
             response.raise_for_status()
             payload = response.json()
             models = payload.get("models", [])
-            return any(self.model in item.get("name", "") for item in models)
+            return any(item.get("name", "") == self.model for item in models)
 
     async def generate_yaml_text(self, prompt: str, context: dict[str, Any] | None, system_prompt: str) -> str:
         timeout = httpx.Timeout(self.timeout_seconds)
@@ -40,7 +40,8 @@ class OllamaClient:
 
     @staticmethod
     def _compose_prompt(prompt: str, context: dict[str, Any] | None, system_prompt: str) -> str:
-        context_block = "{}" if context is None else str(context)
+        import json
+        context_block = json.dumps(context, ensure_ascii=False, sort_keys=True) if context is not None else "{}"
         return (
             f"{system_prompt}\n\n"
             f"User task:\n{prompt}\n\n"

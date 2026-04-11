@@ -17,12 +17,13 @@ from app.models import (
     GenerateResponse,
     HealthResponse,
     SessionState,
-    ValidationErrorResponse,
 )
 from app.services.error_mapper import NormalizedValidationError
 from app.services.ollama_client import OllamaClient
 from app.services.session_store import SessionStore, SessionStoreError
 from app.services.yaml_pipeline import YamlValidationPipeline
+
+_APP_ROOT = Path(__file__).resolve().parent.parent
 
 
 logging.basicConfig(level=logging.INFO)
@@ -35,9 +36,10 @@ ollama = OllamaClient(
     model=settings.ollama_model,
     timeout_seconds=settings.ollama_timeout_seconds,
 )
-pipeline = YamlValidationPipeline(schema_path=settings.schema_path)
+_schema_path = str(_APP_ROOT / settings.schema_path) if not Path(settings.schema_path).is_absolute() else settings.schema_path
+pipeline = YamlValidationPipeline(schema_path=_schema_path)
 session_store = SessionStore()
-system_prompt = Path("prompts/yaml_generation.md").read_text(encoding="utf-8")
+system_prompt = (_APP_ROOT / "prompts" / "yaml_generation.md").read_text(encoding="utf-8")
 
 app = FastAPI(title="LocalScript YAML API", version="0.1.0")
 
@@ -163,7 +165,7 @@ def _raise_controlled_session_error(
 
 @app.get("/", include_in_schema=False)
 async def index() -> FileResponse:
-    return FileResponse("templates/index.html")
+    return FileResponse(str(_APP_ROOT / "templates" / "index.html"))
 
 
 @app.get(
@@ -186,7 +188,6 @@ async def health() -> HealthResponse:
 @app.post(
     "/generate",
     responses={
-        400: {"model": ValidationErrorResponse},
         409: {"description": "Controlled session error"},
         500: {"description": "Internal error"},
         503: {"description": "Ollama unavailable"},

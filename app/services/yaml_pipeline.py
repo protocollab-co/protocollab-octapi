@@ -38,18 +38,23 @@ class YamlValidationPipeline:
             from yaml_serializer import SerializerSession  # type: ignore
 
             logger.info("[YAML_PARSER] Using protocollab yaml_serializer.SerializerSession")
-            with NamedTemporaryFile("w", delete=False, suffix=".yaml", encoding="utf-8") as tmp:
-                tmp.write(yaml_text)
-                tmp_path = tmp.name
-            session = SerializerSession(
-                {
-                    "max_file_size": 10_000,
-                    "max_struct_depth": 10,
-                    "max_include_depth": 10,
-                    "max_imports": 0,
-                }
-            )
-            data = session.load(tmp_path)
+            tmp_path: str | None = None
+            try:
+                with NamedTemporaryFile("w", delete=False, suffix=".yaml", encoding="utf-8") as tmp:
+                    tmp.write(yaml_text)
+                    tmp_path = tmp.name
+                session = SerializerSession(
+                    {
+                        "max_file_size": 10_000,
+                        "max_struct_depth": 10,
+                        "max_include_depth": 10,
+                        "max_imports": 0,
+                    }
+                )
+                data = session.load(tmp_path)
+            finally:
+                if tmp_path is not None:
+                    Path(tmp_path).unlink(missing_ok=True)
             if not isinstance(data, dict):
                 raise NormalizedValidationError(
                     field="yaml",
