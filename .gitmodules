@@ -1,0 +1,4 @@
+[submodule "third_party/protocollab"]
+	path = third_party/protocollab
+	url = https://github.com/protocollab-co/protocollab.git
+	branch = octapi

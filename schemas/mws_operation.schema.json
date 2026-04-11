@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://protocollab-octapi.local/schemas/mws_operation.schema.json",
+  "title": "MWS Octapi Operation Contract",
+  "type": "object",
+  "required": ["operation", "parameters"],
+  "additionalProperties": false,
+  "properties": {
+    "operation": {
+      "type": "string",
+      "enum": [
+        "array_last",
+        "math_increment",
+        "object_clean",
+        "array_filter",
+        "datetime_iso",
+        "datetime_unix",
+        "ensure_array_field"
+      ]
+    },
+    "parameters": {
+      "type": "object"
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "operation": { "const": "array_last" } } },
+      "then": {
+        "properties": {
+          "parameters": {
+            "type": "object",
+            "required": ["source"],
+            "additionalProperties": true,
+            "properties": {
+              "source": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "operation": { "const": "math_increment" } } },
+      "then": {
+        "properties": {
+          "parameters": {
+            "type": "object",
+            "required": ["variable", "step"],
+            "additionalProperties": true,
+            "properties": {
+              "variable": { "type": "string", "minLength": 1 },
+              "step": { "type": "number" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "operation": { "const": "object_clean" } } },
+      "then": {
+        "properties": {
+          "parameters": {
+            "type": "object",
+            "required": ["source", "fields_to_remove"],
+            "additionalProperties": true,
+            "properties": {
+              "source": { "type": "string", "minLength": 1 },
+              "fields_to_remove": {
+                "type": "array",
+                "items": { "type": "string", "minLength": 1 },
+                "minItems": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "operation": { "const": "array_filter" } } },
+      "then": {
+        "properties": {
+          "parameters": {
+            "type": "object",
+            "required": ["source", "condition"],
+            "additionalProperties": true,
+            "properties": {
+              "source": { "type": "string", "minLength": 1 },
+              "condition": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "operation": { "const": "datetime_iso" } } },
+      "then": {
+        "properties": {
+          "parameters": {
+            "type": "object",
+            "required": ["date_field", "time_field"],
+            "additionalProperties": true,
+            "properties": {
+              "date_field": { "type": "string", "minLength": 1 },
+              "time_field": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "operation": { "const": "datetime_unix" } } },
+      "then": {
+        "properties": {
+          "parameters": {
+            "type": "object",
+            "required": ["source"],
+            "additionalProperties": true,
+            "properties": {
+              "source": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "operation": { "const": "ensure_array_field" } } },
+      "then": {
+        "properties": {
+          "parameters": {
+            "type": "object",
+            "required": ["source", "field"],
+            "additionalProperties": true,
+            "properties": {
+              "source": { "type": "string", "minLength": 1 },
+              "field": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
