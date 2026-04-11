@@ -34,3 +34,40 @@
 3. Ошибки selector/`luac`/sandbox возвращаются в API в контролируемом формате.
 4. Переданы: каталог шаблонов, правила selector, контракт результата sandbox, стабильные E2E-кейсы.
 5. Для `array_filter` подтверждён путь `protocollab.expression` → AST → `to_lua`.
+
+## Статус реализации
+1. Добавлен endpoint `POST /execute` с двумя режимами входа: `session_id` или inline `yaml`.
+2. Реализован строгий selector `operation -> template` без fallback.
+3. Добавлены 7 шаблонов в `templates/lua`:
+	- `array_last.lua.jinja2`
+	- `math_increment.lua.jinja2`
+	- `object_clean.lua.jinja2`
+	- `array_filter.lua.jinja2`
+	- `datetime_iso.lua.jinja2`
+	- `datetime_unix.lua.jinja2`
+	- `ensure_array_field.lua.jinja2`
+4. Для `array_filter` используется только `parse_expr(condition) -> AST -> to_lua(ast)`.
+5. Проверка `luac -p` запускается внутри Docker.
+6. Sandbox исполнение использует ограничения:
+	- timeout: 5s
+	- memory: 128MB
+	- network: `none`
+7. Контракт результата sandbox унифицирован:
+	- `status`
+	- `stdout`
+	- `stderr`
+	- `exit_code`
+8. При недоступном Docker возвращается контролируемая ошибка (`source = sandbox`), без падения API.
+
+## Артефакты
+1. Сервисы:
+	- `app/services/template_selector.py`
+	- `app/services/lua_codegen.py`
+	- `app/services/lua_validator.py`
+	- `app/services/sandbox_executor.py`
+2. Интеграция API:
+	- `app/main.py` (`/execute`, readiness в `/health`)
+	- `app/models.py` (`ExecuteRequest`, `ExecuteResponse`, `ExecutionResult`)
+	- `app/config.py` (sandbox/template settings)
+3. Тесты:
+	- `tests/test_day3_execute.py`
