@@ -1,0 +1,10 @@
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
+httpx>=0.27.0
+pydantic>=2.7.0
+pydantic-settings>=2.3.0
+jsonschema>=4.22.0
+PyYAML>=6.0.1
+pytest>=8.2.0
+-e ./third_party/protocollab
+jinja2>=3.1.0
