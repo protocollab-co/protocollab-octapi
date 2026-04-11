@@ -2,11 +2,27 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+
+try:
+    from pydantic_settings import BaseSettings, SettingsConfigDict
+
+    _HAS_PYDANTIC_SETTINGS = True
+except ImportError:
+    from pydantic import BaseSettings  # type: ignore
+
+    SettingsConfigDict = dict  # type: ignore
+    _HAS_PYDANTIC_SETTINGS = False
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    if _HAS_PYDANTIC_SETTINGS:
+        model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    if not _HAS_PYDANTIC_SETTINGS:
+        class Config:
+            env_file = ".env"
+            env_file_encoding = "utf-8"
+            extra = "ignore"
 
     ollama_base_url: str = Field(default="http://localhost:11434", alias="OLLAMA_BASE_URL")
     ollama_model: str = Field(default="qwen2.5-coder:1.5b", alias="OLLAMA_MODEL")

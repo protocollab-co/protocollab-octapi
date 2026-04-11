@@ -102,33 +102,11 @@ class YamlValidationPipeline:
 
     def _validate_schema(self, parsed: dict[str, Any]) -> None:
         try:
-            if hasattr(self._schema_validator, "validate") and "jsonschema_validator" in type(self._schema_validator).__module__:
-                errors = self._schema_validator.validate(self.schema, parsed)
-                if errors:
-                    first = errors[0]
-                    field_path = ".".join(first.path) if getattr(first, "path", None) else "operation"
-                    raise NormalizedValidationError(
-                        field=field_path,
-                        message=getattr(first, "message", "Schema validation failed"),
-                        expected="schema-compliant value",
-                        got="invalid",
-                        hint="Check required fields and allowed operation values.",
-                        source="schema",
-                    )
+            if self._is_protocollab_schema_validator():
+                self._validate_with_protocollab_schema(parsed)
                 return
 
-            errors = list(self._schema_validator.iter_errors(parsed))
-            if errors:
-                first = errors[0]
-                field_path = ".".join([str(p) for p in first.absolute_path]) or "operation"
-                raise NormalizedValidationError(
-                    field=field_path,
-                    message=first.message,
-                    expected="schema-compliant value",
-                    got="invalid",
-                    hint="Check required fields and allowed operation values.",
-                    source="schema",
-                )
+            self._validate_with_jsonschema(parsed)
         except NormalizedValidationError:
             raise
         except Exception as exc:
@@ -163,14 +141,77 @@ class YamlValidationPipeline:
         try:
             validator(condition)
         except Exception as exc:
+            error_pos = getattr(exc, "pos", None)
+            position_hint = f" Error position: {error_pos}." if error_pos is not None else ""
             raise NormalizedValidationError(
                 field="parameters.condition",
                 message=f"Invalid condition expression: {exc}",
                 expected="valid protocollab expression",
                 got=condition,
-                hint="Use operators supported by protocollab.expression.",
+                hint=f"Use operators supported by protocollab.expression.{position_hint}",
                 source="expression",
             ) from exc
+
+    def _is_protocollab_schema_validator(self) -> bool:
+        return hasattr(self._schema_validator, "validate") and "jsonschema_validator" in type(self._schema_validator).__module__
+
+    def _validate_with_protocollab_schema(self, parsed: dict[str, Any]) -> None:
+        errors = self._schema_validator.validate(self.schema, parsed)
+        if not errors:
+            return
+
+        first = errors[0]
+        field_path = ".".join(first.path) if getattr(first, "path", None) else "operation"
+        schema_path = getattr(first, "schema_path", "") or "unknown"
+        self._raise_schema_validation_error(
+            parsed=parsed,
+            field_path=field_path,
+            message=getattr(first, "message", "Schema validation failed"),
+            schema_path=schema_path,
+        )
+
+    def _validate_with_jsonschema(self, parsed: dict[str, Any]) -> None:
+        errors = list(self._schema_validator.iter_errors(parsed))
+        if not errors:
+            return
+
+        first = errors[0]
+        field_path = ".".join([str(p) for p in first.absolute_path]) or "operation"
+        schema_path = ".".join([str(p) for p in first.absolute_schema_path]) if getattr(first, "absolute_schema_path", None) else "unknown"
+        self._raise_schema_validation_error(
+            parsed=parsed,
+            field_path=field_path,
+            message=first.message,
+            schema_path=schema_path,
+        )
+
+    @staticmethod
+    def _get_value_by_path(parsed: dict[str, Any], field_path: str) -> str:
+        current: Any = parsed
+        for part in field_path.split("."):
+            if not part:
+                continue
+            if isinstance(current, dict) and part in current:
+                current = current[part]
+                continue
+            return "invalid"
+        return str(current)
+
+    def _raise_schema_validation_error(
+        self,
+        parsed: dict[str, Any],
+        field_path: str,
+        message: str,
+        schema_path: str,
+    ) -> None:
+        raise NormalizedValidationError(
+            field=field_path,
+            message=message,
+            expected=f"schema rule {schema_path}",
+            got=self._get_value_by_path(parsed, field_path),
+            hint="Check required fields, operation-specific parameters, and data types.",
+            source="schema",
+        )
 
     @staticmethod
     def _resolve_expression_validator():
