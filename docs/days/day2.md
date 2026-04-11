@@ -26,3 +26,46 @@
 3. В логах есть трассировка по каждой попытке.
 4. Переданы: контракт сессии, примеры structured feedback, финальный YAML для template selector.
 5. В feedback явно отражается источник ошибки (`schema`/`expression`).
+
+## Реализованный контракт сессии
+- `session_id`: строковый идентификатор сессии.
+- `attempts`: текущее число выполненных попыток.
+- `max_attempts`: лимит попыток (3).
+- `original_prompt`: исходный пользовательский запрос.
+- `context`: накопленный контекст с уточнениями.
+- `history`: список попыток с `attempt`, `prompt`, `yaml`, `feedback`.
+- `yaml`: последний валидный YAML (если достигнут).
+
+## Structured feedback (примеры)
+### Пример 1: schema
+```json
+{
+	"field": "operation",
+	"message": "'unknown' is not one of ['array_filter', 'array_last', 'field_map', 'template_selector', 'sort', 'deduplicate', 'group_by']",
+	"expected": "schema rule properties.operation.enum",
+	"got": "unknown",
+	"hint": "Check required fields, operation-specific parameters, and data types.",
+	"source": "schema"
+}
+```
+
+### Пример 2: expression
+```json
+{
+	"field": "parameters.condition",
+	"message": "Invalid condition expression: duplicated operator",
+	"expected": "valid protocollab expression",
+	"got": "item.Discount ~= ~= nil",
+	"hint": "Use operators supported by protocollab.expression.",
+	"source": "expression"
+}
+```
+
+## Финальный YAML для template selector
+```yaml
+operation: template_selector
+parameters:
+	source: wf.vars.templates
+	condition: item.type == "invoice"
+	template: "invoice_v2"
+```
