@@ -14,6 +14,12 @@ class AskRequest(BaseModel):
     question: str = Field(min_length=1)
 
 
+class ExecuteRequest(BaseModel):
+    session_id: str | None = None
+    yaml: dict[str, Any] | None = None
+    context: dict[str, Any] | None = None
+
+
 class ValidationErrorResponse(BaseModel):
     field: str
     message: str
@@ -41,6 +47,20 @@ class GenerateResponse(BaseModel):
     feedback: list[FeedbackItem] = Field(default_factory=list)
 
 
+class ExecutionResult(BaseModel):
+    status: str
+    stdout: str
+    stderr: str
+    exit_code: int
+
+
+class ExecuteResponse(BaseModel):
+    session_id: str | None = None
+    operation: str
+    lua_code: str
+    execution_result: ExecutionResult
+
+
 class AttemptHistoryItem(BaseModel):
     attempt: int
     prompt: str
@@ -62,3 +82,4 @@ class HealthResponse(BaseModel):
     status: str
     ollama: str
     model: str
+    docker: str | None = None
