@@ -41,7 +41,7 @@
 ```json
 {
 	"field": "operation",
-	"message": "'unknown' is not one of ['array_filter', 'array_last', 'field_map', 'template_selector', 'sort', 'deduplicate', 'group_by']",
+	"message": "'unknown' is not one of ['array_filter', 'array_last', 'math_increment', 'object_clean', 'datetime_iso', 'datetime_unix', 'ensure_array_field']",
 	"expected": "schema rule properties.operation.enum",
 	"got": "unknown",
 	"hint": "Check required fields, operation-specific parameters, and data types.",

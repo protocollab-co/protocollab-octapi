@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 
 
-def test_health_endpoint_handles_unavailable_ollama(monkeypatch):
+def test_health_endpoint_returns_ok_when_ollama_available(monkeypatch):
     client = TestClient(app)
 
     async def fake_health():

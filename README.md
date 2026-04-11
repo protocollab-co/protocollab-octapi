@@ -8,7 +8,7 @@
 	- `GET /health`
 	- `POST /generate`
 - Генерация YAML через локальную модель Ollama `qwen2.5-coder:1.5b`.
-- Безопасный парсинг YAML через `protocollab.yaml_serializer.load_yaml`.
+- Безопасный парсинг YAML через `yaml_serializer.SerializerSession`.
 - Валидация контракта через `protocollab.jsonschema_validator`.
 - Валидация `parameters.condition` для `array_filter` через `protocollab.expression.validate_expr`.
 - Единый формат ошибки: `field`, `message`, `expected`, `got`, `hint`, `source`.
@@ -106,19 +106,24 @@ UI будет доступен по адресу `http://localhost:8080/`.
 }
 ```
 
-Ошибка валидации (`400`):
+Ответ при ошибке валидации (HTTP 200, `is_complete: false`):
 
 ```json
 {
-	"detail": {
-		"field": "operation",
-		"message": "'unknown' is not one of ['array_last', ...]",
-		"expected": "schema-compliant value",
-		"got": "invalid",
-		"hint": "Check required fields and allowed operation values.",
-		"source": "schema",
-		"attempts": 1
-	}
+	"session_id": "<uuid>",
+	"yaml": null,
+	"attempts": 1,
+	"is_complete": false,
+	"feedback": [
+		{
+			"field": "operation",
+			"message": "'unknown' is not one of ['array_last', ...]",
+			"expected": "schema-compliant value",
+			"got": "invalid",
+			"hint": "Check required fields and allowed operation values.",
+			"source": "schema"
+		}
+	]
 }
 ```
 
