@@ -1,0 +1,17 @@
+local data = {{ params.source }}
+if type(data) ~= "table" then
+  error("object_clean source must be a table")
+end
+
+local fields = {
+{% for item in params.fields_to_remove %}
+  ["{{ item }}"] = true,
+{% endfor %}
+}
+
+for key, _ in pairs(fields) do
+  data[key] = nil
+end
+
+print("cleaned")
+return data

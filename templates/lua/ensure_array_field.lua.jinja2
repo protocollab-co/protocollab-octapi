@@ -1,0 +1,25 @@
+local source = {{ params.source }}
+if type(source) ~= "table" then
+  error("ensure_array_field source must be table")
+end
+
+local field_name = "{{ params.field }}"
+local field_value = source[field_name]
+
+if type(field_value) ~= "table" then
+  source[field_name] = { field_value }
+else
+  local is_array = true
+  for key, _ in pairs(field_value) do
+    if type(key) ~= "number" then
+      is_array = false
+      break
+    end
+  end
+  if not is_array then
+    source[field_name] = { field_value }
+  end
+end
+
+print("ok")
+return source
