@@ -11,7 +11,6 @@ E2E scenarios for Day 1-4 flow:
 NOTE: Execute tests require Docker. They will be skipped if Docker unavailable.
 """
 
-import json
 import os
 import pytest
 from fastapi.testclient import TestClient
@@ -38,8 +37,15 @@ def is_docker_available():
     return executor.is_available()
 
 
+def is_ollama_available():
+    """Check if Ollama endpoint is reachable for /generate and /ask tests."""
+    client = TestClient(app)
+    response = client.get("/health")
+    return response.status_code == 200
+
+
 pytestmark = pytest.mark.skipif(
-    os.getenv("RUN_E2E") != "1" or not is_docker_available(),
+    os.getenv("RUN_E2E") != "1" or not is_docker_available() or not is_ollama_available(),
     reason="Set RUN_E2E=1 and provide Docker/Ollama runtime to run E2E scenarios"
 )
 
@@ -135,7 +141,7 @@ class TestE2EContextInjection:
                 "context": {
                     "wf": {
                         "vars": {
-                            "items": [{"id": 1, "name": "Item A"}, {"id": 2, "name": "Item B"}]
+                            "items": ["Item A", "Item B"]
                         }
                     }
                 }
@@ -146,7 +152,7 @@ class TestE2EContextInjection:
         data = response.json()
         assert data["execution_result"]["status"] == "success"
         # Result should be the last item (Item B)
-        assert "Item B" in data["execution_result"]["stdout"] or "2" in data["execution_result"]["stdout"]
+        assert "Item B" in data["execution_result"]["stdout"]
 
 
 class TestE2EConditionError:
@@ -182,7 +188,7 @@ class TestE2EMathIncrement:
                 "yaml": {
                     "operation": "math_increment",
                     "parameters": {
-                        "target_field": "counter",
+                        "variable": "wf.vars.counter",
                         "step": 5
                     }
                 },
