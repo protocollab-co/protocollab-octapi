@@ -1,0 +1,19 @@
+flowchart TD
+    U[User Prompt] --> G[/POST /generate/]
+    G --> O[Ollama Generate]
+    O --> V[YamlValidationPipeline]
+    V -->|invalid| F[FeedbackItem]
+    F --> A[/POST /ask/]
+    A --> O
+
+    V -->|valid YAML| S[SessionStore]
+    S --> E[/POST /execute/]
+    E --> T[TemplateSelector]
+    T --> C[LuaCodeGenerator]
+    C --> L[LuaCodeValidator luac -p]
+    L -->|ok| X[DockerSandboxExecutor]
+    L -->|syntax error| ER[409 NormalizedValidationError]
+
+    X -->|success/failed/timeout| R[ExecutionResult]
+    R --> API[FastAPI JSON Response]
+    API --> UI[Web UI index.html]

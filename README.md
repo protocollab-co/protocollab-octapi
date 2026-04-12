@@ -58,6 +58,62 @@ docker-compose down
 
 ## 🔧 Локальный запуск (без Docker)
 
+### 1. Установить зависимости
+
+```bash
+python -m venv .venv
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
+
+pip install -r requirements.txt
+```
+
+### 2. Установить protocollab (рекомендуется)
+
+```bash
+git clone https://github.com/protocollab-co/protocollab.git third_party/protocollab
+pip install -e ./third_party/protocollab
+```
+
+### 3. Запустить Ollama
+
+```bash
+ollama serve
+ollama pull neural-chat
+```
+
+### 4. Запустить API
+
+```bash
+$env:PYTHONPATH = "d:/Work/protocollab-octapi"
+$env:OLLAMA_BASE_URL = "http://localhost:11434"
+$env:OLLAMA_MODEL = "neural-chat"
+
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+Рекомендуемые параметры модели для демо:
+
+- `num_ctx=4096`
+- `num_predict=256`
+
+## ⚙️ Конфигурация
+
+Основные env-переменные:
+
+- `OLLAMA_BASE_URL` (по умолчанию `http://localhost:11434`)
+- `OLLAMA_MODEL` (по умолчанию `neural-chat`)
+- `DOCKER_IMAGE` (по умолчанию `lua:5.4-alpine`)
+- `SANDBOX_TIMEOUT_SECONDS` (по умолчанию `5`)
+- `SANDBOX_MEMORY_MB` (по умолчанию `128`)
+- `SANDBOX_NETWORK_MODE` (по умолчанию `none`)
+- `TEMPLATES_DIR` (по умолчанию `templates/octapi`)
+- `SCHEMA_PATH` (по умолчанию `schemas/mws_operation.schema.json`)
+
+## 🗺️ MVP Flow Diagram
+
+Mermaid-диаграмма основного потока Day1-4: `docs/diagrams/mvp_day1_day4_flow.mmd`
+
 ## API
 
 ### `GET /health`
@@ -199,8 +255,24 @@ Endpoint выполнения валидного YAML в Lua.
 pytest -q
 ```
 
+Запуск только Day1-Day4 тестов:
+
+```bash
+pytest tests/test_day1_generate.py tests/test_day2_generate.py tests/test_day3_execute.py tests/test_day4_runtime_contract.py -q
+```
+
 Базовое покрытие Day 1:
 
 - успешный `array_last`
 - ошибка schema (`unknown operation`)
 - ошибка expression для `array_filter.condition`
+
+## Роль protocollab
+
+`protocollab` в проекте отвечает за:
+
+- безопасный YAML parsing (`yaml_serializer`)
+- schema validation (`jsonschema_validator`)
+- expression parsing/validation для `array_filter.condition`
+
+Fallback-режим без protocollab есть, но для защиты/демо рекомендуется именно protocollab runtime.
