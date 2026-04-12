@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 import subprocess
+import uuid
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
@@ -25,8 +26,8 @@ def _to_lua_value(value: Any) -> str:
     if isinstance(value, dict):
         chunks: list[str] = []
         for key, item in value.items():
-            if isinstance(key, str) and key.isidentifier():
-                chunks.append(f"{key} = {_to_lua_value(item)}")
+            if isinstance(key, str):
+                chunks.append(f"[{_to_lua_value(key)}] = {_to_lua_value(item)}")
             else:
                 chunks.append(f"[{_to_lua_value(key)}] = {_to_lua_value(item)}")
         return "{" + ", ".join(chunks) + "}"
@@ -72,6 +73,7 @@ class DockerSandboxExecutor:
     def execute(self, lua_code: str, context: dict[str, Any] | None) -> ExecutionResult:
         script = self.build_script(lua_code=lua_code, context=context)
         tmp_file: str | None = None
+        container_name = f"octapi-sandbox-{uuid.uuid4().hex}"
         try:
             with NamedTemporaryFile("w", delete=False, suffix=".lua", encoding="utf-8") as handle:
                 handle.write(script)
@@ -81,10 +83,23 @@ class DockerSandboxExecutor:
                 "docker",
                 "run",
                 "--rm",
+                "--name",
+                container_name,
                 "--network",
                 self.network_mode,
                 "--memory",
                 f"{self.memory_mb}m",
+                "--pids-limit",
+                "64",
+                "--cap-drop",
+                "ALL",
+                "--security-opt",
+                "no-new-privileges",
+                "--read-only",
+                "--tmpfs",
+                "/tmp:rw,noexec,nosuid,size=16m",
+                "--user",
+                "65534:65534",
                 "-v",
                 f"{tmp_file}:/work/script.lua:ro",
                 self.docker_image,
@@ -115,6 +130,7 @@ class DockerSandboxExecutor:
                 source="sandbox",
             ) from exc
         except subprocess.TimeoutExpired as exc:
+            subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, text=True, timeout=3, check=False)
             return ExecutionResult(
                 status="timeout",
                 stdout=exc.stdout or "",

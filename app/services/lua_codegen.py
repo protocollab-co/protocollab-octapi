@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
@@ -24,7 +25,13 @@ def to_lua(node: Any) -> str:
         if isinstance(value, bool):
             return "true" if value else "false"
         if isinstance(value, str):
-            escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+            escaped = (
+                value.replace("\\", "\\\\")
+                .replace('"', '\\"')
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t")
+            )
             return f'"{escaped}"'
         return str(value)
 
@@ -73,6 +80,80 @@ class LuaCodeGenerator:
             trim_blocks=True,
             lstrip_blocks=True,
         )
+        self._env.filters["lua_string"] = self._escape_lua_string
+
+    _LUA_EXPR_PATTERN = re.compile(
+        r'^(?:wf\.vars|item)(?:\.[A-Za-z_][A-Za-z0-9_]*|\[[0-9]+\]|\["[A-Za-z0-9_\- ]+"\])*$',
+    )
+
+    @staticmethod
+    def _escape_lua_string(value: Any) -> str:
+        text = str(value)
+        return (
+            text.replace("\\", "\\\\")
+            .replace('"', '\\"')
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+            .replace("\t", "\\t")
+        )
+
+    def _require_lua_expression(self, params: dict[str, Any], key: str) -> str:
+        value = self._require_string(params, key)
+        if not self._LUA_EXPR_PATTERN.fullmatch(value):
+            raise NormalizedValidationError(
+                field=f"parameters.{key}",
+                message=f"Unsafe or invalid Lua expression for parameter: {key}",
+                expected='expression like wf.vars.field, wf.vars.obj["key"], or item.attr',
+                got=value,
+                hint="Use only wf.vars or item-based field access expressions.",
+                source="template_selector",
+            )
+        return value
+
+    @staticmethod
+    def _require_number(params: dict[str, Any], key: str) -> float | int:
+        value = params.get(key)
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise NormalizedValidationError(
+                field=f"parameters.{key}",
+                message=f"Missing or invalid required numeric parameter: {key}",
+                expected="number",
+                got=str(value),
+                hint="Provide numeric value for this parameter.",
+                source="template_selector",
+            )
+        return value
+
+    def _sanitize_params(self, operation: str, params: dict[str, Any]) -> dict[str, Any]:
+        clean = dict(params)
+
+        if operation in {"array_filter", "array_last", "datetime_unix", "ensure_array_field", "object_clean"}:
+            clean["source"] = self._require_lua_expression(clean, "source")
+
+        if operation == "math_increment":
+            clean["variable"] = self._require_lua_expression(clean, "variable")
+            clean["step"] = self._require_number(clean, "step")
+
+        if operation == "datetime_iso":
+            clean["date_field"] = self._require_lua_expression(clean, "date_field")
+            clean["time_field"] = self._require_lua_expression(clean, "time_field")
+
+        if operation == "ensure_array_field":
+            clean["field"] = self._require_string(clean, "field")
+
+        if operation == "object_clean":
+            fields = clean.get("fields_to_remove")
+            if not isinstance(fields, list) or any(not isinstance(item, str) for item in fields):
+                raise NormalizedValidationError(
+                    field="parameters.fields_to_remove",
+                    message="Missing or invalid required parameter: fields_to_remove",
+                    expected="list of strings",
+                    got=str(fields),
+                    hint="Provide fields_to_remove as an array of string field names.",
+                    source="template_selector",
+                )
+
+        return clean
 
     @staticmethod
     def _require_string(params: dict[str, Any], key: str) -> str:
@@ -89,10 +170,11 @@ class LuaCodeGenerator:
         return value
 
     def _build_render_context(self, operation: str, params: dict[str, Any]) -> dict[str, Any]:
-        context: dict[str, Any] = {"operation": operation, "params": params}
+        clean_params = self._sanitize_params(operation=operation, params=params)
+        context: dict[str, Any] = {"operation": operation, "params": clean_params}
 
         if operation == "array_filter":
-            condition = self._require_string(params, "condition")
+            condition = self._require_string(clean_params, "condition")
             try:
                 from protocollab.expression import parse_expr  # type: ignore
             except Exception as exc:

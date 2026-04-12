@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     ollama_model: str = Field(default="qwen2.5-coder:1.5b", alias="OLLAMA_MODEL")
     ollama_timeout_seconds: int = Field(default=60, alias="OLLAMA_TIMEOUT_SECONDS")
     schema_path: str = Field(default="schemas/mws_operation.schema.json", alias="SCHEMA_PATH")
-    templates_dir: str = Field(default="templates/lua", alias="TEMPLATES_DIR")
+    templates_dir: str = Field(default="templates/octapi", alias="TEMPLATES_DIR")
     docker_image: str = Field(default="lua:5.4", alias="DOCKER_IMAGE")
     sandbox_timeout_seconds: int = Field(default=5, alias="SANDBOX_TIMEOUT_SECONDS")
     sandbox_memory_mb: int = Field(default=128, alias="SANDBOX_MEMORY_MB")

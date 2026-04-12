@@ -3,7 +3,7 @@ if type(source) ~= "table" then
   error("ensure_array_field source must be table")
 end
 
-local field_name = "{{ params.field }}"
+local field_name = "{{ params.field | lua_string }}"
 local field_value = source[field_name]
 
 if type(field_value) ~= "table" then

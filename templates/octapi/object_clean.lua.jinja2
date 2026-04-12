@@ -5,7 +5,7 @@ end
 
 local fields = {
 {% for item in params.fields_to_remove %}
-  ["{{ item }}"] = true,
+  ["{{ item | lua_string }}"] = true,
 {% endfor %}
 }
 

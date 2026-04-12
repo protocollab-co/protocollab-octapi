@@ -186,6 +186,15 @@ def _raise_controlled_session_error(
 
 
 def _resolve_execute_input(payload: ExecuteRequest) -> tuple[str | None, dict[str, object], dict[str, object] | None]:
+    if payload.session_id and payload.yaml is not None:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "invalid_execute_payload",
+                "message": "Provide either session_id or yaml, not both.",
+            },
+        )
+
     if payload.session_id:
         session = session_store.get(payload.session_id)
         if session.yaml is None:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import uuid
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
@@ -22,6 +23,7 @@ class LuaCodeValidator:
 
     def validate_syntax(self, lua_code: str) -> None:
         tmp_file: str | None = None
+        container_name = f"octapi-luac-{uuid.uuid4().hex}"
         try:
             with NamedTemporaryFile("w", delete=False, suffix=".lua", encoding="utf-8") as handle:
                 handle.write(lua_code)
@@ -31,10 +33,23 @@ class LuaCodeValidator:
                 "docker",
                 "run",
                 "--rm",
+                "--name",
+                container_name,
                 "--network",
                 self.network_mode,
                 "--memory",
                 f"{self.memory_mb}m",
+                "--pids-limit",
+                "64",
+                "--cap-drop",
+                "ALL",
+                "--security-opt",
+                "no-new-privileges",
+                "--read-only",
+                "--tmpfs",
+                "/tmp:rw,noexec,nosuid,size=16m",
+                "--user",
+                "65534:65534",
                 "-v",
                 f"{tmp_file}:/work/script.lua:ro",
                 self.docker_image,
@@ -69,6 +84,7 @@ class LuaCodeValidator:
                 source="sandbox",
             ) from exc
         except subprocess.TimeoutExpired as exc:
+            subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, text=True, timeout=3, check=False)
             raise NormalizedValidationError(
                 field="lua",
                 message=f"luac syntax check timed out after {self.timeout_seconds}s",

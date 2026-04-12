@@ -35,7 +35,7 @@ class BinOp:
 
 
 def test_template_selector_unknown_operation():
-    selector = TemplateSelector(templates_dir="templates/lua")
+    selector = TemplateSelector(templates_dir="templates/octapi")
 
     try:
         selector.select_template("unknown")
@@ -49,6 +49,12 @@ def test_to_lua_binop_not_equal_mapping():
     ast = BinOp(Attribute(Name("item"), "Discount"), "!=", Literal(None))
     lua_expr = to_lua(ast)
     assert lua_expr == "(item.Discount ~= nil)"
+
+
+def test_to_lua_escapes_control_chars_in_string_literal():
+    ast = Literal('line1\n"quoted"\tline2\\tail')
+    lua_expr = to_lua(ast)
+    assert lua_expr == '"line1\\n\\"quoted\\"\\tline2\\\\tail"'
 
 
 def test_execute_with_inline_yaml_success(monkeypatch):
@@ -98,6 +104,52 @@ def test_execute_unknown_operation_returns_controlled_error(monkeypatch):
     assert detail["source"] == "template_selector"
 
 
+def test_execute_rejects_session_id_and_yaml_together(monkeypatch):
+    client = TestClient(app)
+
+    monkeypatch.setattr("app.main.lua_validator.validate_syntax", lambda code: None)
+    monkeypatch.setattr(
+        "app.main.sandbox_executor.execute",
+        lambda lua_code, context: ExecutionResult(status="success", stdout="ok\n", stderr="", exit_code=0),
+    )
+
+    response = client.post(
+        "/execute",
+        json={
+            "session_id": "abc123",
+            "yaml": {
+                "operation": "array_last",
+                "parameters": {"source": "wf.vars.emails"},
+            },
+        },
+    )
+
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert detail["code"] == "invalid_execute_payload"
+
+
+def test_execute_rejects_unsafe_lua_expression(monkeypatch):
+    client = TestClient(app)
+
+    monkeypatch.setattr("app.main.lua_validator.validate_syntax", lambda code: None)
+
+    response = client.post(
+        "/execute",
+        json={
+            "yaml": {
+                "operation": "array_last",
+                "parameters": {"source": 'wf.vars.emails; os.execute("id")'},
+            }
+        },
+    )
+
+    assert response.status_code == 409
+    detail = response.json()["detail"]
+    assert detail["source"] == "template_selector"
+    assert detail["field"] == "parameters.source"
+
+
 def test_execute_luac_error_mapped(monkeypatch):
     client = TestClient(app)
 
@@ -129,7 +181,7 @@ def test_execute_luac_error_mapped(monkeypatch):
 
 
 def test_all_day3_templates_exist():
-    base = Path("templates/lua")
+    base = Path("templates/octapi")
     names = {
         "array_last.lua.jinja2",
         "math_increment.lua.jinja2",

@@ -38,7 +38,7 @@
 ## Статус реализации
 1. Добавлен endpoint `POST /execute` с двумя режимами входа: `session_id` или inline `yaml`.
 2. Реализован строгий selector `operation -> template` без fallback.
-3. Добавлены 7 шаблонов в `templates/lua`:
+3. Добавлены 7 шаблонов в `templates/octapi`:
 	- `array_last.lua.jinja2`
 	- `math_increment.lua.jinja2`
 	- `object_clean.lua.jinja2`
