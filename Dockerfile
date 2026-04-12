@@ -12,6 +12,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy requirements and install Python packages
 COPY requirements.txt .
 COPY third_party/protocollab ./third_party/protocollab
+RUN test -d ./third_party/protocollab \
+    && test -n "$(find ./third_party/protocollab -mindepth 1 -maxdepth 1 -print -quit)" \
+    && (test -f ./third_party/protocollab/pyproject.toml || test -f ./third_party/protocollab/setup.py) \
+    || (echo "ERROR: third_party/protocollab is missing, empty, or not an installable Python package. Ensure the protocollab submodule is initialized before running docker build (for example: git submodule update --init --recursive)." >&2 && exit 1)
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Stage 2: Runtime

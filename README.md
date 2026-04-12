@@ -33,6 +33,12 @@
 
 ### One-command startup:
 
+Перед запуском убедись, что submodule инициализирован:
+
+```bash
+git submodule update --init --recursive
+```
+
 ```bash
 docker-compose up --build
 ```
@@ -85,7 +91,7 @@ ollama pull neural-chat
 ### 4. Запустить API
 
 ```bash
-$env:PYTHONPATH = "d:/Work/protocollab-octapi"
+$env:PYTHONPATH = "."
 $env:OLLAMA_BASE_URL = "http://localhost:11434"
 $env:OLLAMA_MODEL = "neural-chat"
 
