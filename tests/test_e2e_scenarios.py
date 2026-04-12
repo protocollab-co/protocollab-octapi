@@ -38,10 +38,18 @@ def is_docker_available():
 
 
 def is_ollama_available():
-    """Check if Ollama endpoint is reachable for /generate and /ask tests."""
+    """Check if Ollama is healthy enough for /generate and /ask tests."""
     client = TestClient(app)
     response = client.get("/health")
-    return response.status_code == 200
+    if response.status_code != 200:
+        return False
+
+    try:
+        health_data = response.json()
+    except ValueError:
+        return False
+
+    return health_data.get("ollama") == "available" or health_data.get("status") == "ok"
 
 
 pytestmark = pytest.mark.skipif(
@@ -85,7 +93,7 @@ class TestE2EHappyPath:
         
         assert exec_data["operation"] == "array_last"
         assert exec_data["execution_result"]["status"] == "success"
-        assert "charlie@example.com" in exec_data["execution_result"]["stdout"] or "3" in exec_data["execution_result"]["stdout"]
+        assert "charlie@example.com" in exec_data["execution_result"]["stdout"]
 
 
 class TestE2EErrorAndFix:
@@ -98,6 +106,7 @@ class TestE2EErrorAndFix:
             "/generate",
             json={"prompt": "Do something with the list"},  # Vague
         )
+        assert response.status_code == 200
         gen_data = response.json()
         
         # If generation failed (is_complete: false)
@@ -166,15 +175,24 @@ class TestE2EConditionError:
                 "prompt": "Filter numbers greater than 5"
             }
         )
+        assert response.status_code == 200
         gen_data = response.json()
-        
-        # array_filter requires valid condition, may get error
-        if not gen_data["is_complete"] and len(gen_data.get("feedback", [])) > 0:
-            feedback = gen_data["feedback"][0]
-            # Feedback structure should include field, message, etc.
+
+        # array_filter requires valid condition. Depending on model behavior,
+        # this prompt may return feedback or a complete generation.
+        assert "is_complete" in gen_data
+        if not gen_data["is_complete"]:
+            feedback_items = gen_data.get("feedback", [])
+            assert len(feedback_items) > 0
+            feedback = feedback_items[0]
             assert "field" in feedback
             assert "message" in feedback
             assert "source" in feedback
+        else:
+            yaml_payload = gen_data.get("yaml")
+            assert isinstance(yaml_payload, dict)
+            assert yaml_payload.get("operation") == "array_filter"
+            assert isinstance(yaml_payload.get("parameters"), dict)
 
 
 class TestE2EMathIncrement:
@@ -255,7 +273,7 @@ class TestE2EMutualExclusivity:
             json={
                 "yaml": {
                     "operation": "array_last",
-                    "parameters": {"source": "data"}
+                    "parameters": {"source": "wf.vars.data"}
                 },
                 "context": {"wf": {"vars": {"data": [1, 2, 3]}}}
             }
@@ -288,7 +306,7 @@ class TestSmokeChecklist:
             assert resp.status_code != 404, f"Endpoint {method} {path} not found"
 
     def test_response_schemas_valid(self, client):
-        """Verify response JSON schmas are valid."""
+        """Verify response JSON schemas are valid."""
         # Health check
         health_resp = client.get("/health")
         assert health_resp.status_code == 200
