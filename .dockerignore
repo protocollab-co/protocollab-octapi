@@ -51,5 +51,6 @@ Dockerfile
 
 # Development files
 *.md
+!prompts/*.md
 .env.local
 *.log

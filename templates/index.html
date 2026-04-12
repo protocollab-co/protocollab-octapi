@@ -368,6 +368,7 @@
         }
 
         const execResult = data.execution_result;
+        document.getElementById('luaCode').textContent = data.lua_code || document.getElementById('luaCode').textContent;
         showStatus('executeStatus', `✓ Выполнено (статус: ${execResult.status})`, execResult.status === 'success' ? 'success' : 'error');
         
         document.getElementById('execStatus').textContent = execResult.status;

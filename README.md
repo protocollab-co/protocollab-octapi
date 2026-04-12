@@ -102,8 +102,8 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 Основные env-переменные:
 
 - `OLLAMA_BASE_URL` (по умолчанию `http://localhost:11434`)
-- `OLLAMA_MODEL` (по умолчанию `neural-chat`)
-- `DOCKER_IMAGE` (по умолчанию `lua:5.4-alpine`)
+- `OLLAMA_MODEL` (по умолчанию `qwen2.5-coder:1.5b`)
+- `DOCKER_IMAGE` (по умолчанию `lua:5.4`)
 - `SANDBOX_TIMEOUT_SECONDS` (по умолчанию `5`)
 - `SANDBOX_MEMORY_MB` (по умолчанию `128`)
 - `SANDBOX_NETWORK_MODE` (по умолчанию `none`)

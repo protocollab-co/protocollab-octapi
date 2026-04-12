@@ -89,7 +89,7 @@ class TestUnsafeExpressionRejection:
         template = octapi_dir / "math_increment.lua.jinja2"
         template.write_text("result = 0 + {{ step }}")
 
-        codegen = LuaCodeGenerator(templates_dir=str(templates_dir))
+        codegen = LuaCodeGenerator(templates_dir=str(octapi_dir))
 
         # Unsafe: injection attempt via Lua comments/code
         with pytest.raises(NormalizedValidationError):
@@ -111,7 +111,7 @@ class TestUnsafeExpressionRejection:
         template = octapi_dir / "array_filter.lua.jinja2"
         template.write_text("-- filter template")
 
-        codegen = LuaCodeGenerator(templates_dir=str(templates_dir))
+        codegen = LuaCodeGenerator(templates_dir=str(octapi_dir))
 
         # Unsafe: trying to inject Lua code in field name
         with pytest.raises(NormalizedValidationError):
