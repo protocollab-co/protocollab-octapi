@@ -1,0 +1,21 @@
+local source = {{ params.source }}
+if type(source) ~= "string" then
+  error("datetime_unix source must be string")
+end
+
+local year, month, day, hour, minute, second = source:match("(%d+)%-(%d+)%-(%d+)T(%d+):(%d+):(%d+)")
+if not year then
+  error("datetime_unix source must match YYYY-MM-DDTHH:MM:SS")
+end
+
+local unix = os.time({
+  year = tonumber(year),
+  month = tonumber(month),
+  day = tonumber(day),
+  hour = tonumber(hour),
+  min = tonumber(minute),
+  sec = tonumber(second)
+})
+
+print(unix)
+return unix

@@ -1,18 +1,24 @@
 # protocollab-octapi
 
-Фаза 1 (Day 1): локальная генерация YAML-контракта для MWS Octapi через Ollama и валидация через компоненты protocollab.
+Фазы Day 1-3: генерация YAML-контракта для MWS Octapi через Ollama, валидация через protocollab, затем безопасная трансляция в Lua и запуск в Docker sandbox.
 
 ## Что уже реализовано
 
 - FastAPI backend с endpoint-ами:
 	- `GET /health`
 	- `POST /generate`
+	- `POST /ask`
+	- `POST /execute`
 - Генерация YAML через локальную модель Ollama `qwen2.5-coder:1.5b`.
 - Безопасный парсинг YAML через `yaml_serializer.SerializerSession`.
 - Валидация контракта через `protocollab.jsonschema_validator`.
 - Валидация `parameters.condition` для `array_filter` через `protocollab.expression.validate_expr`.
 - Единый формат ошибки: `field`, `message`, `expected`, `got`, `hint`, `source`.
 - Минимальный UI на одной странице (`/`) для демо потока.
+- Строгий selector `operation -> lua template` без fallback для неизвестных операций.
+- Для `array_filter` используется путь `protocollab.expression.parse_expr -> AST -> to_lua(ast)`.
+- Проверка синтаксиса Lua через `luac -p` в Docker.
+- Запуск Lua в sandbox Docker с ограничениями: timeout 5s, memory 128MB, `--network none`.
 
 ## Быстрый старт
 
@@ -71,7 +77,8 @@ UI будет доступен по адресу `http://localhost:8080/`.
 {
 	"status": "ok",
 	"ollama": "available",
-	"model": "qwen2.5-coder:1.5b"
+	"model": "qwen2.5-coder:1.5b",
+	"docker": "available"
 }
 ```
 
@@ -96,15 +103,69 @@ UI будет доступен по адресу `http://localhost:8080/`.
 
 ```json
 {
+	"session_id": "<uuid>",
 	"yaml": {
 		"operation": "array_last",
 		"parameters": {
 			"source": "wf.vars.emails"
 		}
 	},
-	"attempts": 1
+	"attempts": 1,
+	"is_complete": true,
+	"feedback": []
 }
 ```
+
+### `POST /execute`
+
+Endpoint выполнения валидного YAML в Lua.
+
+Поддерживаются два режима:
+
+- по `session_id` (берётся валидный YAML из session state);
+- по inline `yaml` в теле запроса.
+
+Пример запроса:
+
+```json
+{
+	"yaml": {
+		"operation": "array_last",
+		"parameters": {
+			"source": "wf.vars.emails"
+		}
+	},
+	"context": {
+		"wf": {
+			"vars": {
+				"emails": ["a@example.com", "b@example.com"]
+			}
+		}
+	}
+}
+```
+
+Пример ответа:
+
+```json
+{
+	"session_id": null,
+	"operation": "array_last",
+	"lua_code": "local source = wf.vars.emails\n...",
+	"execution_result": {
+		"status": "success",
+		"stdout": "b@example.com\n",
+		"stderr": "",
+		"exit_code": 0
+	}
+}
+```
+
+Контролируемые ошибки возвращаются с деталями в `detail` и источником `source`:
+
+- `template_selector`
+- `lua_syntax`
+- `sandbox`
 
 Ответ при ошибке валидации (HTTP 200, `is_complete: false`):
 

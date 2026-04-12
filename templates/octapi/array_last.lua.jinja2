@@ -1,0 +1,10 @@
+local source = {{ params.source }}
+if type(source) ~= "table" then
+  error("array_last source must be an array/table")
+end
+
+local result = source[#source]
+if result ~= nil then
+  print(result)
+end
+return result

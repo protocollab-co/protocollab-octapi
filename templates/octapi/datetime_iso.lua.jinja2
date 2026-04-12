@@ -1,0 +1,17 @@
+local datum = {{ params.date_field }}
+local time = {{ params.time_field }}
+
+if type(datum) ~= "string" or type(time) ~= "string" then
+  error("datetime_iso fields must be strings")
+end
+
+local year = string.sub(datum, 1, 4)
+local month = string.sub(datum, 5, 6)
+local day = string.sub(datum, 7, 8)
+local hour = string.sub(time, 1, 2)
+local minute = string.sub(time, 3, 4)
+local second = string.sub(time, 5, 6)
+
+local iso = string.format("%s-%s-%sT%s:%s:%s.00000Z", year, month, day, hour, minute, second)
+print(iso)
+return iso

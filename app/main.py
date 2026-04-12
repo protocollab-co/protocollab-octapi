@@ -12,6 +12,8 @@ from app.config import get_settings
 from app.models import (
     AskRequest,
     AttemptHistoryItem,
+    ExecuteRequest,
+    ExecuteResponse,
     FeedbackItem,
     GenerateRequest,
     GenerateResponse,
@@ -19,8 +21,12 @@ from app.models import (
     SessionState,
 )
 from app.services.error_mapper import NormalizedValidationError
+from app.services.lua_codegen import LuaCodeGenerator
+from app.services.lua_validator import LuaCodeValidator
 from app.services.ollama_client import OllamaClient
+from app.services.sandbox_executor import DockerSandboxExecutor
 from app.services.session_store import SessionStore, SessionStoreError
+from app.services.template_selector import TemplateSelector
 from app.services.yaml_pipeline import YamlValidationPipeline
 
 _APP_ROOT = Path(__file__).resolve().parent.parent
@@ -29,6 +35,7 @@ _APP_ROOT = Path(__file__).resolve().parent.parent
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 MAX_LOGGED_MODEL_OUTPUT_CHARS = 1200
+UNEXPECTED_LOG_MESSAGE = "[UNEXPECTED] Unhandled error"
 
 settings = get_settings()
 ollama = OllamaClient(
@@ -40,6 +47,21 @@ _schema_path = str(_APP_ROOT / settings.schema_path) if not Path(settings.schema
 pipeline = YamlValidationPipeline(schema_path=_schema_path)
 session_store = SessionStore()
 system_prompt = (_APP_ROOT / "prompts" / "yaml_generation.md").read_text(encoding="utf-8")
+_templates_dir = str(_APP_ROOT / settings.templates_dir) if not Path(settings.templates_dir).is_absolute() else settings.templates_dir
+template_selector = TemplateSelector(templates_dir=_templates_dir)
+lua_codegen = LuaCodeGenerator(templates_dir=_templates_dir)
+lua_validator = LuaCodeValidator(
+    docker_image=settings.docker_image,
+    timeout_seconds=settings.sandbox_timeout_seconds,
+    memory_mb=settings.sandbox_memory_mb,
+    network_mode=settings.sandbox_network_mode,
+)
+sandbox_executor = DockerSandboxExecutor(
+    docker_image=settings.docker_image,
+    timeout_seconds=settings.sandbox_timeout_seconds,
+    memory_mb=settings.sandbox_memory_mb,
+    network_mode=settings.sandbox_network_mode,
+)
 
 app = FastAPI(title="LocalScript YAML API", version="0.1.0")
 
@@ -163,6 +185,66 @@ def _raise_controlled_session_error(
     raise HTTPException(status_code=status_code, detail=detail)
 
 
+def _resolve_execute_input(payload: ExecuteRequest) -> tuple[str | None, dict[str, object], dict[str, object] | None]:
+    if payload.session_id and payload.yaml is not None:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "invalid_execute_payload",
+                "message": "Provide either session_id or yaml, not both.",
+            },
+        )
+
+    if payload.session_id:
+        session = session_store.get(payload.session_id)
+        if session.yaml is None:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "session_not_ready",
+                    "message": "Session has no valid YAML yet. Complete /generate or /ask first.",
+                    "session_id": session.session_id,
+                    "attempts": session.attempts,
+                },
+            )
+
+        yaml_payload = session.yaml
+        context_payload = payload.context if payload.context is not None else session.context
+        return session.session_id, yaml_payload, context_payload
+
+    if payload.yaml is None:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "invalid_execute_payload",
+                "message": "Provide session_id or yaml for /execute.",
+            },
+        )
+
+    return None, payload.yaml, payload.context
+
+
+def _execute_yaml_contract(
+    yaml_payload: dict[str, object],
+    context_payload: dict[str, object] | None,
+    session_id: str | None,
+) -> ExecuteResponse:
+    operation = str(yaml_payload.get("operation", ""))
+    params_obj = yaml_payload.get("parameters", {})
+    params = params_obj if isinstance(params_obj, dict) else {}
+
+    template_path = template_selector.select_template(operation)
+    lua_code = lua_codegen.generate_code(operation=operation, params=params, template_path=template_path)
+    lua_validator.validate_syntax(lua_code)
+    execution_result = sandbox_executor.execute(lua_code=lua_code, context=context_payload)
+    return ExecuteResponse(
+        session_id=session_id,
+        operation=operation,
+        lua_code=lua_code,
+        execution_result=execution_result,
+    )
+
+
 @app.get("/", include_in_schema=False)
 async def index() -> FileResponse:
     return FileResponse(str(_APP_ROOT / "templates" / "index.html"))
@@ -179,6 +261,7 @@ async def health() -> HealthResponse:
             status="ok" if is_ready else "degraded",
             ollama="available" if is_ready else "model_not_found",
             model=settings.ollama_model,
+            docker="available" if sandbox_executor.is_available() else "unavailable",
         )
     except HTTPError as exc:
         logger.exception("[OLLAMA] Health check failed")
@@ -207,7 +290,7 @@ async def generate(payload: GenerateRequest) -> GenerateResponse:
         logger.exception("[OLLAMA] Generate call failed")
         raise HTTPException(status_code=503, detail=f"Ollama request failed: {exc}") from exc
     except Exception as exc:
-        logger.exception("[UNEXPECTED] Unhandled error")
+        logger.exception(UNEXPECTED_LOG_MESSAGE)
         raise HTTPException(status_code=500, detail=f"Internal error: {exc}") from exc
 
 
@@ -257,5 +340,34 @@ async def ask(payload: AskRequest) -> GenerateResponse:
     except HTTPException:
         raise
     except Exception as exc:
-        logger.exception("[UNEXPECTED] Unhandled error")
+        logger.exception(UNEXPECTED_LOG_MESSAGE)
+        raise HTTPException(status_code=500, detail=f"Internal error: {exc}") from exc
+
+
+@app.post(
+    "/execute",
+    responses={
+        400: {"description": "Invalid execute payload"},
+        404: {"description": "Session not found"},
+        409: {"description": "Controlled execution error"},
+        500: {"description": "Internal error"},
+    },
+)
+async def execute(payload: ExecuteRequest) -> ExecuteResponse:
+    try:
+        session_id, yaml_payload, context_payload = _resolve_execute_input(payload)
+        return _execute_yaml_contract(
+            yaml_payload=yaml_payload,
+            context_payload=context_payload,
+            session_id=session_id,
+        )
+    except SessionStoreError as exc:
+        status_code = 404 if exc.code == "not_found" else 409
+        raise HTTPException(status_code=status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    except NormalizedValidationError as exc:
+        raise HTTPException(status_code=409, detail=exc.as_dict()) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception(UNEXPECTED_LOG_MESSAGE)
         raise HTTPException(status_code=500, detail=f"Internal error: {exc}") from exc

@@ -1,0 +1,14 @@
+local source = {{ params.source }}
+if type(source) ~= "table" then
+  error("array_filter source must be an array/table")
+end
+
+local filtered = {}
+for _, item in ipairs(source) do
+  if {{ condition_lua }} then
+    table.insert(filtered, item)
+  end
+end
+
+print(#filtered)
+return filtered

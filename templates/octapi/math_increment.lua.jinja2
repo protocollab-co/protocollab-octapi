@@ -1,0 +1,8 @@
+local current_value = {{ params.variable }}
+if type(current_value) ~= "number" then
+  error("math_increment variable must be a number")
+end
+
+local result = current_value + {{ params.step }}
+print(result)
+return result
