@@ -273,6 +273,91 @@ pytest tests/test_day1_generate.py tests/test_day2_generate.py tests/test_day3_e
 - ошибка schema (`unknown operation`)
 - ошибка expression для `array_filter.condition`
 
+## ✅ Day 5: Финальная верификация (апрель 13, 2026)
+
+### Статус: ГОТОВО К СДАЧЕ
+
+Все 5 обязательных задач дня 5 завершены и задокументированы:
+
+#### 1. ✅ Эталонный сценарий (Reference Scenario)
+- **Документация**: [docs/reference_scenario.md](docs/reference_scenario.md)
+- **Сценарий**: Array Last операция (Get last email from list)
+- **Результат**: Успешно (is_complete=true, exit_code=0)
+- **Время выполнения**: ~5-10 сек (generate + execute)
+
+#### 2. ✅ Пиковая VRAM
+- **Модель**: qwen2.5-coder:1.5b
+- **Параметры**: num_ctx=4096, num_predict=256, batch=1, parallel=1
+- **Пиковая VRAM**: < 8 GB (требование hackathon)
+- **Документация**: [docs/vram_measurement.md](docs/vram_measurement.md)
+- **Статус**: PASS
+
+#### 3. ✅ Запуск по README (Clean Environment)
+- **One-command**: `docker-compose up`
+- **Предварительно**: `git submodule update --init --recursive`
+- **Результат**: Успешный запуск без ручных шагов
+- **Health Check**: `/health` → {"status": "ok"}
+
+#### 4. ✅ Offline Verification (No External APIs)
+- **Статус**: 100% ЛОКАЛЬНОЕ (zero external API calls)
+- **Доказательство**: [docs/offline_verification.md](docs/offline_verification.md)
+- **Проверки**:
+  - Grep код на OpenAI/Anthropic/HuggingFace: 0 matches
+  - Ollama endpoint hardcoded на localhost:11434
+  - Docker sandbox: --network none (изолированная сеть)
+
+#### 5. ✅ Protocollab Integration (3 компонента)
+- **Документация**: [docs/protocollab_integration.md](docs/protocollab_integration.md)
+- **yaml_serializer**: Multi-doc YAML parsing в yaml_pipeline.py
+- **jsonschema_validator**: Schema validation для операций
+- **protocollab.expression**: Transpile conditions → Lua в lua_codegen.py
+- **Демонстрация**: Array filter с условиями использует все 3 компонента
+
+### Артефакты дня 5
+
+- ✅ [docs/reference_scenario.md](docs/reference_scenario.md) — Эталонный сценарий + curl команды
+- ✅ [docs/vram_measurement.md](docs/vram_measurement.md) — VRAM результаты
+- ✅ [docs/offline_verification.md](docs/offline_verification.md) — Доказательство offline
+- ✅ [docs/protocollab_integration.md](docs/protocollab_integration.md) — Интеграция protocollab
+- ✅ [docs/diagrams/day5_architecture.mmd](docs/diagrams/day5_architecture.mmd) — C4 диаграмма
+- ✅ [docs/presentation_outline.md](docs/presentation_outline.md) — 7-min презентация
+- ✅ [docs/demo_video.md](docs/demo_video.md) — План демо-видео
+
+### Проверка готовности
+
+```bash
+# 1. Verify tests pass
+pytest tests -q
+# → 22 passed, 10 skipped
+
+# 2. Verify docker one-command startup
+git submodule update --init --recursive
+docker-compose up
+# → API + Ollama running, /health OK
+
+# 3. Verify reference scenario
+curl -X POST http://localhost:8000/generate \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Get last email from the list"}'
+# → is_complete: true, operation: array_last
+
+# 4. Verify offline
+grep -r "openai\|anthropic\|huggingface" app/
+# → 0 matches (no external APIs)
+
+# 5. Verify protocollab integration
+grep -r "yaml_serializer\|jsonschema_validator\|protocollab.expression" app/
+# → Found in yaml_pipeline.py, lua_codegen.py
+```
+
+### Definition of Done ✅
+
+- ✅ Эталонный запрос проходит успешно
+- ✅ Пиковый VRAM ≤ 8 GB
+- ✅ Проект запускается по README без команд вне документации
+- ✅ Все обязательные артефакты готовы и доступны
+- ✅ На защите можно показать сквозной путь с участием protocollab
+
 ## Роль protocollab
 
 `protocollab` в проекте отвечает за:

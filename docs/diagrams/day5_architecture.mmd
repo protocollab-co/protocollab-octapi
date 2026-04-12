@@ -1,0 +1,61 @@
+---
+id: day5-c4-diagram
+title: Day 5 Architecture - C4 Model with Protocollab Integration
+---
+graph TB
+    subgraph Users["👤 Users"]
+        Browser["Browser / CLI Client"]
+    end
+
+    subgraph External["🌐 External (NOT USED)"]
+        OpenAI["❌ OpenAI API"]
+        Anthropic["❌ Anthropic API"]
+        style OpenAI stroke:red,stroke-width:2px,color:red
+        style Anthropic stroke:red,stroke-width:2px,color:red
+    end
+
+    subgraph Local["🖥️ Local Stack"]
+        subgraph API["Backend API (FastAPI)"]
+            direction TB
+            Main["app/main.py<br/>Endpoints:<br/>- /health<br/>- /generate<br/>- /ask<br/>- /execute"]
+            
+            subgraph Services["🔧 Services"]
+                YAMLPipeline["yaml_pipeline.py<br/>- YAML parsing<br/>- Schema validation<br/>- Expression analysis"]
+                LuaCodegen["lua_codegen.py<br/>- Template selection<br/>- Lua code generation<br/>- Parameter escaping"]
+                SandboxExecutor["sandbox_executor.py<br/>- Docker sandbox<br/>- Isolated execution<br/>- Resource limits"]
+            end
+            
+            Main --> YAMLPipeline
+            Main --> LuaCodegen
+            Main --> SandboxExecutor
+        end
+
+        subgraph Protocollab["📦 Protocollab (OSS)<br/>third_party/protocollab"]
+            direction TB
+            YAMLSerializer["yaml_serializer<br/>Multi-doc YAML parsing<br/>with structure validation"]
+            JSONValidator["jsonschema_validator<br/>Pluggable schema<br/>validation backend"]
+            Expression["expression module<br/>Parse & transpile<br/>conditions → Lua"]
+        end
+
+        subgraph Runtime["🔨 Runtime Stack"]
+            Ollama["Ollama Container<br/>qwen2.5-coder:1.5b<br/>port 11434"]
+            LuaRuntime["Lua 5.4 Container<br/>Docker Sandbox<br/>--network none"]
+        end
+
+        YAMLPipeline -.->|uses| YAMLSerializer
+        YAMLPipeline -.->|uses| JSONValidator
+        LuaCodegen -.->|uses| Expression
+        Main -->|inference| Ollama
+        SandboxExecutor -->|executes| LuaRuntime
+    end
+
+    Browser -->|HTTP REST| Main
+    Browser -.->|❌ NOT used| External
+
+    style Local fill:#e1f5e1,stroke:#2d6a2d
+    style API fill:#fff9e6,stroke:#d4af37
+    style Services fill:#f0f0f0,stroke:#333
+    style Protocollab fill:#e6f3ff,stroke:#0066cc
+    style Runtime fill:#ffe6e6,stroke:#cc3333
+    style Users fill:#e6e6fa,stroke:#333
+    style External fill:#ffcccc,stroke:#cc0000,stroke-width:3px
