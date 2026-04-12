@@ -1,69 +1,124 @@
 # protocollab-octapi
 
-Фазы Day 1-3: генерация YAML-контракта для MWS Octapi через Ollama, валидация через protocollab, затем безопасная трансляция в Lua и запуск в Docker sandbox.
+🚀 **LocalScript Фазы День 1-4:** Генерация YAML-контракта для MWS Octapi через Ollama + protocollab, валидация параметров, преобразование в Lua и безопасное выполнение в Docker sandbox.
 
-## Что уже реализовано
+## 📋 Что реализовано
 
-- FastAPI backend с endpoint-ами:
-	- `GET /health`
-	- `POST /generate`
-	- `POST /ask`
-	- `POST /execute`
-- Генерация YAML через локальную модель Ollama `qwen2.5-coder:1.5b`.
-- Безопасный парсинг YAML через `yaml_serializer.SerializerSession`.
-- Валидация контракта через `protocollab.jsonschema_validator`.
-- Валидация `parameters.condition` для `array_filter` через `protocollab.expression.validate_expr`.
-- Единый формат ошибки: `field`, `message`, `expected`, `got`, `hint`, `source`.
-- Минимальный UI на одной странице (`/`) для демо потока.
-- Строгий selector `operation -> lua template` без fallback для неизвестных операций.
-- Для `array_filter` используется путь `protocollab.expression.parse_expr -> AST -> to_lua(ast)`.
-- Проверка синтаксиса Lua через `luac -p` в Docker.
-- Запуск Lua в sandbox Docker с ограничениями: timeout 5s, memory 128MB, `--network none`.
+### День 1-2: YAML Pipeline
+- ✅ FastAPI с `/generate`, `/ask`, `/execute`, `/health` эндпоинтами
+- ✅ Генерация через локальную модель Ollama
+- ✅ Валидация YAML через protocollab (`yaml_serializer`, `jsonschema_validator`)
+- ✅ Валидация условий (`array_filter`) через `protocollab.expression.parse_expr`
+- ✅ Единый формат ошибок: `field`, `message`, `expected`, `got`, `hint`, `source`
+- ✅ Сессионное хранилище с историей попыток
+- ✅ Уточнение через `/ask` (follow-up) с контекстом истории
 
-## Быстрый старт
+### День 3-4: Lua Runtime + Security
+- ✅ Преобразование AST условий в Lua код (`to_lua` transpiler)
+- ✅ Параметр-валидация: безопасные Lua выражения, числовые параметры
+- ✅ Jinja2 шаблоны для 7 операций (array_last, math_increment, object_clean, array_filter, datetime_iso, datetime_unix, ensure_array_field)
+- ✅ Синтаксис-проверка Lua через `luac -p` в Docker
+- ✅ Безопасное выполнение в Docker sandbox с hardening:
+  - `--user 65534:65534` (nobody)
+  - `--cap-drop ALL` (no capabilities)
+  - `--no-new-privileges` (no privilege escalation)
+  - `--network none` (изолированная сеть)
+  - `--read-only` (read-only filesystem)
+  - `--pids-limit 64` (ограничение процессов)
+  - `--tmpfs /tmp` (временные файлы)
+- ✅ Timeout обработка (5 сек по умолчанию)
+- ✅ Контрол-символ escaping (\n, \r, \t) в Lua строках
 
-### 1. Установка зависимостей
+## 🚀 Docker Quick Start
+
+### One-command startup:
+
+Перед запуском убедись, что submodule инициализирован:
 
 ```bash
+git submodule update --init --recursive
+```
+
+```bash
+docker-compose up --build
+```
+
+Это поднимет:
+- 🦙 **Ollama** (localhost:11434) с моделью neural-chat
+- 🌐 **LocalScript API** (localhost:8000) с Web UI (/)
+
+После старта откройте http://localhost:8000 в браузере.
+
+**Для первого запуска (загрузка модели):**
+```bash
+# Посмотреть логи Ollama
+docker-compose logs -f ollama
+
+# После сообщения "serving on ..." API стартует автоматически
+```
+
+### Остановка:
+```bash
+docker-compose down
+```
+
+## 🔧 Локальный запуск (без Docker)
+
+### 1. Установить зависимости
+
+```bash
+python -m venv .venv
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
+
 pip install -r requirements.txt
 ```
 
-Установка protocollab для патчей (рекомендуется):
+### 2. Установить protocollab (рекомендуется)
 
 ```bash
 git clone https://github.com/protocollab-co/protocollab.git third_party/protocollab
 pip install -e ./third_party/protocollab
 ```
 
-Если `protocollab` не установлен, сервис запустится в fallback-режиме:
-
-- YAML: `PyYAML`
-- Schema: `jsonschema`
-- Expression: минимальная локальная проверка
-
-Для хакатонной защиты рекомендуется запуск с установленным `protocollab`.
-
-### 2. Поднять Ollama и модель
+### 3. Запустить Ollama
 
 ```bash
 ollama serve
-ollama pull qwen2.5-coder:1.5b
+ollama pull neural-chat
 ```
 
-Рекомендуемые параметры для проверки:
+### 4. Запустить API
+
+```bash
+$env:PYTHONPATH = "."
+$env:OLLAMA_BASE_URL = "http://localhost:11434"
+$env:OLLAMA_MODEL = "neural-chat"
+
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+Рекомендуемые параметры модели для демо:
 
 - `num_ctx=4096`
 - `num_predict=256`
-- `batch=1`
-- `parallel=1`
 
-### 3. Запуск API
+## ⚙️ Конфигурация
 
-```bash
-uvicorn app.main:app --reload --port 8080
-```
+Основные env-переменные:
 
-UI будет доступен по адресу `http://localhost:8080/`.
+- `OLLAMA_BASE_URL` (по умолчанию `http://localhost:11434`)
+- `OLLAMA_MODEL` (по умолчанию `qwen2.5-coder:1.5b`)
+- `DOCKER_IMAGE` (по умолчанию `lua:5.4`)
+- `SANDBOX_TIMEOUT_SECONDS` (по умолчанию `5`)
+- `SANDBOX_MEMORY_MB` (по умолчанию `128`)
+- `SANDBOX_NETWORK_MODE` (по умолчанию `none`)
+- `TEMPLATES_DIR` (по умолчанию `templates/octapi`)
+- `SCHEMA_PATH` (по умолчанию `schemas/mws_operation.schema.json`)
+
+## 🗺️ MVP Flow Diagram
+
+Mermaid-диаграмма основного потока Day1-4: `docs/diagrams/mvp_day1_day4_flow.mmd`
 
 ## API
 
@@ -206,8 +261,24 @@ Endpoint выполнения валидного YAML в Lua.
 pytest -q
 ```
 
+Запуск только Day1-Day4 тестов:
+
+```bash
+pytest tests/test_day1_generate.py tests/test_day2_generate.py tests/test_day3_execute.py tests/test_day4_runtime_contract.py -q
+```
+
 Базовое покрытие Day 1:
 
 - успешный `array_last`
 - ошибка schema (`unknown operation`)
 - ошибка expression для `array_filter.condition`
+
+## Роль protocollab
+
+`protocollab` в проекте отвечает за:
+
+- безопасный YAML parsing (`yaml_serializer`)
+- schema validation (`jsonschema_validator`)
+- expression parsing/validation для `array_filter.condition`
+
+Fallback-режим без protocollab есть, но для защиты/демо рекомендуется именно protocollab runtime.

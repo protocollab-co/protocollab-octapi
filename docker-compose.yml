@@ -1,0 +1,75 @@
+version: "3.8"
+
+services:
+  # Ollama LLM service — provides neural-chat model for YAML generation
+  ollama:
+    image: ollama/ollama:latest
+    container_name: localscript-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - localscript-net
+
+  # LocalScript API service — YAML generation, /ask refinement, /execute Lua
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: localscript-api
+    ports:
+      - "8000:8000"
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      # Ollama configuration
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=neural-chat
+      - OLLAMA_TIMEOUT_SECONDS=120
+
+      # Sandbox Docker configuration
+      - DOCKER_IMAGE=lua:5.4-alpine
+      - SANDBOX_TIMEOUT_SECONDS=5
+      - SANDBOX_MEMORY_MB=128
+      - SANDBOX_NETWORK_MODE=none
+
+      # Application settings
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
+      - LOG_LEVEL=INFO
+
+    volumes:
+      # Mount Docker socket for sandbox executor
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Optional: volume for persistent logs
+      - api_logs:/app/logs
+
+    networks:
+      - localscript-net
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+networks:
+  localscript-net:
+    driver: bridge
+
+volumes:
+  ollama_data:
+    driver: local
+  api_logs:
+    driver: local
