@@ -12,6 +12,7 @@ NOTE: Execute tests require Docker. They will be skipped if Docker unavailable.
 """
 
 import json
+import os
 import pytest
 from fastapi.testclient import TestClient
 from app.main import app
@@ -38,8 +39,8 @@ def is_docker_available():
 
 
 pytestmark = pytest.mark.skipif(
-    not is_docker_available(),
-    reason="Docker not available - execute tests skipped"
+    os.getenv("RUN_E2E") != "1" or not is_docker_available(),
+    reason="Set RUN_E2E=1 and provide Docker/Ollama runtime to run E2E scenarios"
 )
 
 
