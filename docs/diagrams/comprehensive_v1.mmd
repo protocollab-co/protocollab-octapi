@@ -110,7 +110,7 @@ flowchart TB
     HEAVY_AGENT --> RAG
     COMPOSE --> RAG
     RAG -- success --> RATE_LIMIT
-    RAG -- fail/timeout --> RATE_LIMIT   %% fallback: генерация без RAG
+    RAG -- fail/timeout --> RATE_LIMIT
 
     RATE_LIMIT --> METADATA
 
@@ -145,9 +145,9 @@ flowchart TB
     DOCKER -- fail --> ErrorHandler
 
     %% Функциональные тесты с оракулом
-    FuncTest --> OracleStorage   %% чтение оракула
+    FuncTest --> OracleStorage
     FuncTest -- passed --> LUA_SCRIPT
-    FuncTest -- passed --> VersionStorage   %% единственное сохранение (только после тестов)
+    FuncTest -- passed --> VersionStorage
     FuncTest -- failed --> ErrorHandler
     TESTS --> FuncTest
 
