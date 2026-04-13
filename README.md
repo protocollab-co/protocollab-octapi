@@ -118,7 +118,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 ## 🗺️ MVP Flow Diagram
 
-Mermaid-диаграмма основного потока Day1-4: `docs/diagrams/mvp_day1_day4_flow.mmd`
+Mermaid-диаграмма основного потока Day1-4: [docs/diagrams/mvp_day1_day4_flow.mmd](docs/diagrams/mvp_day1_day4_flow.mmd)
 
 ## API
 
@@ -280,7 +280,7 @@ pytest tests/test_day1_generate.py tests/test_day2_generate.py tests/test_day3_e
 Все 5 обязательных задач дня 5 завершены и задокументированы:
 
 #### 1. ✅ Эталонный сценарий (Reference Scenario)
-- **Документация**: [docs/reference_scenario.md](docs/reference_scenario.md)
+- **Документация**: [docs/verification/reference_scenario.md](docs/verification/reference_scenario.md)
 - **Сценарий**: Array Last операция (Get last email from list)
 - **Результат**: Успешно (is_complete=true, exit_code=0)
 - **Время выполнения**: ~5-10 сек (generate + execute)
@@ -289,7 +289,7 @@ pytest tests/test_day1_generate.py tests/test_day2_generate.py tests/test_day3_e
 - **Модель**: qwen2.5-coder:1.5b
 - **Параметры**: num_ctx=4096, num_predict=256, batch=1, parallel=1
 - **Пиковая VRAM**: < 8 GB (требование hackathon)
-- **Документация**: [docs/vram_measurement.md](docs/vram_measurement.md)
+- **Документация**: [docs/verification/vram_measurement.md](docs/verification/vram_measurement.md)
 - **Статус**: PASS
 
 #### 3. ✅ Запуск по README (Clean Environment)
@@ -300,14 +300,14 @@ pytest tests/test_day1_generate.py tests/test_day2_generate.py tests/test_day3_e
 
 #### 4. ✅ Offline Verification (No External APIs)
 - **Статус**: 100% ЛОКАЛЬНОЕ (zero external API calls)
-- **Доказательство**: [docs/offline_verification.md](docs/offline_verification.md)
+- **Доказательство**: [docs/verification/offline_verification.md](docs/verification/offline_verification.md)
 - **Проверки**:
   - Grep код на OpenAI/Anthropic/HuggingFace: 0 matches
   - Ollama endpoint hardcoded на localhost:11434
   - Docker sandbox: --network none (изолированная сеть)
 
 #### 5. ✅ Protocollab Integration (3 компонента)
-- **Документация**: [docs/protocollab_integration.md](docs/protocollab_integration.md)
+- **Документация**: [docs/deliverables/protocollab_integration.md](docs/deliverables/protocollab_integration.md)
 - **yaml_serializer**: Multi-doc YAML parsing в yaml_pipeline.py
 - **jsonschema_validator**: Schema validation для операций
 - **protocollab.expression**: Transpile conditions → Lua в lua_codegen.py
@@ -315,13 +315,13 @@ pytest tests/test_day1_generate.py tests/test_day2_generate.py tests/test_day3_e
 
 ### Артефакты дня 5
 
-- ✅ [docs/reference_scenario.md](docs/reference_scenario.md) — Эталонный сценарий + curl команды
-- ✅ [docs/vram_measurement.md](docs/vram_measurement.md) — VRAM результаты
-- ✅ [docs/offline_verification.md](docs/offline_verification.md) — Доказательство offline
-- ✅ [docs/protocollab_integration.md](docs/protocollab_integration.md) — Интеграция protocollab
+- ✅ [docs/verification/reference_scenario.md](docs/verification/reference_scenario.md) — Эталонный сценарий + curl команды
+- ✅ [docs/verification/vram_measurement.md](docs/verification/vram_measurement.md) — VRAM результаты
+- ✅ [docs/verification/offline_verification.md](docs/verification/offline_verification.md) — Доказательство offline
+- ✅ [docs/deliverables/protocollab_integration.md](docs/deliverables/protocollab_integration.md) — Интеграция protocollab
 - ✅ [docs/diagrams/day5_architecture.mmd](docs/diagrams/day5_architecture.mmd) — C4 диаграмма
-- ✅ [docs/presentation_outline.md](docs/presentation_outline.md) — 7-min презентация
-- ✅ [docs/demo_video.md](docs/demo_video.md) — План демо-видео
+- ✅ [docs/deliverables/presentation_outline.md](docs/deliverables/presentation_outline.md) — 7-min презентация
+- ✅ [docs/deliverables/demo_video.md](docs/deliverables/demo_video.md) — План демо-видео
 
 ### Проверка готовности
 
