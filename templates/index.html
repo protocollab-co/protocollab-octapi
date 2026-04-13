@@ -256,14 +256,24 @@
     <!-- ASK SECTION -->
     <div class="section hidden" id="askSection">
       <h2>❓ 2. Уточнить (если нужно)</h2>
+      <div class="form-group">
+        <label for="askSessionId">Session ID</label>
+        <input id="askSessionId" readonly />
+      </div>
       <p id="feedbackText"></p>
+      <div id="feedbackList" class="output" style="white-space: pre-wrap; font-size: 13px;"></div>
       <div class="form-group">
         <label for="question">Вопрос</label>
         <textarea id="question" placeholder="Опиши нужные уточнения..."></textarea>
       </div>
       <button id="btnAsk" onclick="askQuestion()">Отправить уточнение</button>
+      <button id="btnAskHint" class="secondary" onclick="autofillAskHint()">Подставить подсказку</button>
       <button id="btnAskReset" class="secondary" onclick="resetAsk()">Вернуться</button>
       <div id="askStatus" class="hidden status"></div>
+      <div class="form-group" style="margin-top: 12px;">
+        <label for="askResponse">Ответ /ask</label>
+        <div id="askResponse" class="output" style="white-space: pre-wrap;"></div>
+      </div>
     </div>
 
     <!-- EXECUTE SECTION -->
@@ -434,6 +444,34 @@
     let currentSession = null;
     let currentYaml = null;
     let demoHistory = [];
+    let lastFeedback = [];
+
+    function openAskSection() {
+      const ask = document.getElementById('askSection');
+      ask.classList.remove('hidden');
+      ask.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const q = document.getElementById('question');
+      if (q) q.focus();
+    }
+
+    function autofillAskHint() {
+      const input = document.getElementById('question');
+      if (!input) return;
+
+      if (!lastFeedback || lastFeedback.length === 0) {
+        showStatus('askStatus', 'Нет подсказок для автозаполнения', 'error');
+        return;
+      }
+
+      const fb = lastFeedback[0];
+      const parts = [];
+      if (fb.hint) parts.push(fb.hint);
+      if (fb.field) parts.push(`Поле: ${fb.field}`);
+      if (fb.expected) parts.push(`Ожидается: ${fb.expected}`);
+      input.value = parts.join('. ');
+      input.focus();
+      showStatus('askStatus', 'Подсказка подставлена, отредактируйте и отправьте', 'success');
+    }
 
     // ==================== UTILITIES ====================
     function showStatus(elementId, text, type) {
@@ -580,6 +618,7 @@
         yamlCode.className = 'language-yaml';
 
         if (data.is_complete) {
+          lastFeedback = [];
           showStatus('generateStatus', `✓ YAML сгенерирована (попытка ${data.attempts})`, 'success');
           document.getElementById('executeSection').classList.remove('hidden');
           document.getElementById('operationText').textContent = `Операция: ${currentYaml.operation || '?'}`;
@@ -588,10 +627,16 @@
         } else {
           showStatus('generateStatus', `❌ Валидация не прошла (попытка ${data.attempts})`, 'error');
           if (data.feedback && data.feedback.length > 0) {
+            lastFeedback = data.feedback;
             const fb = data.feedback[0];
             const feedbackMsg = `Поле: ${fb.field}\nОшибка: ${fb.message}\nОжидается: ${fb.expected}\nПолучено: ${fb.got}${fb.hint ? '\nПодсказка: ' + fb.hint : ''}`;
             document.getElementById('feedbackText').textContent = feedbackMsg;
-            document.getElementById('askSection').classList.remove('hidden');
+            document.getElementById('feedbackList').textContent = data.feedback.map((item, idx) => {
+              return `${idx + 1}) поле=${item.field}; ошибка=${item.message}; ожидается=${item.expected}; получено=${item.got}${item.hint ? `; подсказка=${item.hint}` : ''}`;
+            }).join('\n');
+            document.getElementById('askResponse').textContent = JSON.stringify(data, null, 2);
+            document.getElementById('askSessionId').value = data.session_id || '';
+            openAskSection();
           }
         }
 
@@ -607,6 +652,9 @@
       document.getElementById('askSection').classList.add('hidden');
       document.getElementById('question').value = '';
       document.getElementById('askStatus').classList.add('hidden');
+      document.getElementById('feedbackList').textContent = '';
+      document.getElementById('askResponse').textContent = '';
+      lastFeedback = [];
     }
 
     async function askQuestion() {
@@ -637,7 +685,10 @@
         }
 
         currentYaml = data.yaml;
+        document.getElementById('askResponse').textContent = JSON.stringify(data, null, 2);
+        document.getElementById('askSessionId').value = currentSession;
         if (data.is_complete) {
+          lastFeedback = [];
           showStatus('askStatus', `✓ YAML обновлена (попытка ${data.attempts})`, 'success');
           document.getElementById('askSection').classList.add('hidden');
           document.getElementById('executeSection').classList.remove('hidden');
@@ -652,10 +703,15 @@
         } else {
           showStatus('askStatus', `❌ Всё ещё ошибка (попытка ${data.attempts})`, 'error');
           if (data.feedback && data.feedback.length > 0) {
+            lastFeedback = data.feedback;
             const fb = data.feedback[0];
             const feedbackMsg = `Поле: ${fb.field}\nОшибка: ${fb.message}`;
             document.getElementById('feedbackText').textContent = feedbackMsg;
+            document.getElementById('feedbackList').textContent = data.feedback.map((item, idx) => {
+              return `${idx + 1}) поле=${item.field}; ошибка=${item.message}; ожидается=${item.expected}; получено=${item.got}${item.hint ? `; подсказка=${item.hint}` : ''}`;
+            }).join('\n');
             document.getElementById('question').value = '';
+            openAskSection();
           }
         }
       } catch (e) {

@@ -74,12 +74,10 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-### 2. Установить protocollab (рекомендуется)
+### 2. Expression-движок уже встроен
 
-```bash
-git clone https://github.com/protocollab-co/protocollab.git third_party/protocollab
-pip install -e ./third_party/protocollab
-```
+Ничего дополнительно устанавливать не нужно: минимальный expression-модуль
+поставляется внутри проекта в папке `app/expression/`.
 
 ### 3. Запустить Ollama
 
@@ -170,6 +168,100 @@ Mermaid-диаграмма основного потока Day1-4: [docs/diagram
 	"feedback": []
 }
 ```
+
+### `POST /ask` — Диалоговое уточнение
+
+Если модели не хватает информации (например, неизвестно имя переменной), она вернёт
+`"is_complete": false` со структурированным `feedback`. Пользователь может передать
+уточнение через `/ask`, и система повторит генерацию с учётом ответа.
+
+**Пример сессии:**
+
+**1. Первый запрос (модель просит уточнение):**
+
+```bash
+curl -X POST http://localhost:8000/generate \
+	-H "Content-Type: application/json" \
+	-d '{"prompt": "Увеличь значение переменной на 3"}'
+```
+
+Ответ (`is_complete: false`):
+
+```json
+{
+	"session_id": "abc-123",
+	"yaml": null,
+	"attempts": 1,
+	"is_complete": false,
+	"feedback": [
+		{
+			"field": "parameters.variable",
+			"message": "Missing required parameter: variable",
+			"expected": "string",
+			"got": "null",
+			"hint": "Specify the variable name, e.g. wf.vars.counter",
+			"source": "schema"
+		}
+	]
+}
+```
+
+**2. Уточнение через `/ask`:**
+
+```bash
+curl -X POST http://localhost:8000/ask \
+	-H "Content-Type: application/json" \
+	-d '{"session_id": "abc-123", "answer": "переменная называется wf.vars.counter"}'
+```
+
+Ответ (`is_complete: true`):
+
+```json
+{
+	"session_id": "abc-123",
+	"yaml": {
+		"operation": "math_increment",
+		"parameters": {
+			"variable": "wf.vars.counter",
+			"step": 3
+		}
+	},
+	"attempts": 2,
+	"is_complete": true,
+	"feedback": []
+}
+```
+
+**3. Выполнение с тем же `session_id`:**
+
+```bash
+curl -X POST http://localhost:8000/execute \
+	-H "Content-Type: application/json" \
+	-d '{
+		"session_id": "abc-123",
+		"context": {"wf": {"vars": {"counter": 5}}}
+	}'
+```
+
+Ответ:
+
+```json
+{
+	"session_id": "abc-123",
+	"operation": "math_increment",
+	"lua_code": "return wf.vars.counter + 3\n",
+	"execution_result": {
+		"status": "success",
+		"stdout": "8\n",
+		"stderr": "",
+		"exit_code": 0
+	}
+}
+```
+
+Эндпоинт `/ask` хранит историю уточнений в той же сессии (`session_id`). Каждый
+вызов `/ask` добавляет ответ пользователя к контексту и запускает новую попытку
+генерации с полным историческим контекстом.
 
 ### `POST /execute`
 
