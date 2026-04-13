@@ -1,0 +1,406 @@
+"""Recursive-descent parser — converts token list into an AST.
+
+Grammar (PEG-style, highest precedence last)
+--------------------------------------------
+::
+
+    expr        = ternary
+    ternary     = or_expr ('if' or_expr 'else' or_expr)?
+    or_expr     = and_expr ('or' and_expr)*
+    and_expr    = not_expr ('and' not_expr)*
+    not_expr    = 'not' not_expr | comparison
+    comparison  = bitwise_or (('==' | '!=' | '<' | '>' | '<=' | '>=') bitwise_or)?
+    bitwise_or  = bitwise_xor ('|' bitwise_xor)*
+    bitwise_xor = bitwise_and ('^' bitwise_and)*
+    bitwise_and = shift ('&' shift)*
+    shift       = additive (('<<' | '>>') additive)*
+    additive    = mult (('+' | '-') mult)*
+    mult        = unary (('*' | '/' | '//' | '%') unary)*
+    unary       = '-' unary | '#' unary | postfix
+    postfix     = primary ('.' NAME | '[' expr ']' | '(' arglist ')')*
+    primary     = INTEGER | FLOAT | STRING | 'true' | 'false'
+                | NAME | '(' expr ')' | '[' list_items ']' | '{' dict_items '}'
+    arglist     = (expr (',' expr)*)? 
+    list_items  = (expr (',' expr)*)?
+    dict_items  = (expr ':' expr (',' expr ':' expr)*)?
+"""
+
+from __future__ import annotations
+
+from typing import List
+
+from app.expression.ast_nodes import (
+    ASTNode,
+    Attribute,
+    BinOp,
+    Call,
+    Dict,
+    List as ASTList,
+    Literal,
+    Name,
+    Subscript,
+    Ternary,
+    UnaryOp,
+)
+from app.expression.lexer import (
+    ExpressionSyntaxError,
+    Token,
+    TokenKind,
+    tokenize,
+)
+
+# ---------------------------------------------------------------------------
+# Operator token → string mapping
+# ---------------------------------------------------------------------------
+_COMPARISON_OPS: dict[TokenKind, str] = {
+    TokenKind.EQ: "==",
+    TokenKind.NEQ: "!=",
+    TokenKind.LT: "<",
+    TokenKind.GT: ">",
+    TokenKind.LEQ: "<=",
+    TokenKind.GEQ: ">=",
+}
+_ADDITIVE_OPS: dict[TokenKind, str] = {
+    TokenKind.PLUS: "+",
+    TokenKind.MINUS: "-",
+}
+_SHIFT_OPS: dict[TokenKind, str] = {
+    TokenKind.LSHIFT: "<<",
+    TokenKind.RSHIFT: ">>",
+}
+_BITWISE_AND_OPS: dict[TokenKind, str] = {
+    TokenKind.AMP: "&",
+}
+_BITWISE_XOR_OPS: dict[TokenKind, str] = {
+    TokenKind.CARET: "^",
+}
+_BITWISE_OR_OPS: dict[TokenKind, str] = {
+    TokenKind.PIPE: "|",
+}
+_MULT_OPS: dict[TokenKind, str] = {
+    TokenKind.STAR: "*",
+    TokenKind.SLASH: "/",
+    TokenKind.FLOOR_DIV: "//",
+    TokenKind.PERCENT: "%",
+}
+
+# Names that must NOT appear as free identifiers (security / safety)
+_FORBIDDEN_NAMES: frozenset[str] = frozenset(
+    {
+        "__class__",
+        "__dict__",
+        "__globals__",
+        "__builtins__",
+        "import",
+        "exec",
+        "eval",
+        "compile",
+        "open",
+        "getattr",
+        "setattr",
+        "delattr",
+        "globals",
+        "locals",
+        "vars",
+        "dir",
+    }
+)
+
+
+class Parser:
+    """Recursive-descent parser that consumes a token list."""
+
+    def __init__(self, tokens: List[Token], source: str = "") -> None:
+        self._tokens = tokens
+        self._pos = 0
+        self._source = source
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _peek(self) -> Token:
+        return self._tokens[self._pos]
+
+    def _advance(self) -> Token:
+        tok = self._tokens[self._pos]
+        if tok.kind != TokenKind.EOF:
+            self._pos += 1
+        return tok
+
+    def _expect(self, kind: TokenKind) -> Token:
+        tok = self._peek()
+        if tok.kind != kind:
+            raise ExpressionSyntaxError(
+                f"Expected {kind.name} but got {tok.kind.name!r} ({tok.value!r})"
+                f" at position {tok.pos}",
+                expr=self._source,
+                pos=tok.pos,
+            )
+        return self._advance()
+
+    def _match(self, *kinds: TokenKind) -> bool:
+        return self._peek().kind in kinds
+
+    def _match_name(self, *names: str) -> bool:
+        tok = self._peek()
+        return tok.kind == TokenKind.NAME and tok.value in names
+
+    # ------------------------------------------------------------------
+    # Grammar rules
+    # ------------------------------------------------------------------
+
+    def parse(self) -> ASTNode:
+        """Parse the full expression and assert no trailing tokens."""
+        node = self._expr()
+        if self._peek().kind != TokenKind.EOF:
+            tok = self._peek()
+            raise ExpressionSyntaxError(
+                f"Unexpected token {tok.value!r} at position {tok.pos}",
+                expr=self._source,
+                pos=tok.pos,
+            )
+        return node
+
+    def _expr(self) -> ASTNode:
+        return self._ternary()
+
+    def _ternary(self) -> ASTNode:
+        node = self._or_expr()
+        if self._match_name("if"):
+            self._advance()
+            condition = self._or_expr()
+            if not self._match_name("else"):
+                raise ExpressionSyntaxError(
+                    "Expected 'else' in ternary expression",
+                    expr=self._source,
+                    pos=self._peek().pos,
+                )
+            self._advance()
+            value_if_false = self._or_expr()
+            return Ternary(
+                value_if_true=node,
+                condition=condition,
+                value_if_false=value_if_false,
+            )
+        return node
+
+    def _or_expr(self) -> ASTNode:
+        node = self._and_expr()
+        while self._match_name("or"):
+            self._advance()
+            right = self._and_expr()
+            node = BinOp(left=node, op="or", right=right)
+        return node
+
+    def _and_expr(self) -> ASTNode:
+        node = self._not_expr()
+        while self._match_name("and"):
+            self._advance()
+            right = self._not_expr()
+            node = BinOp(left=node, op="and", right=right)
+        return node
+
+    def _not_expr(self) -> ASTNode:
+        if self._match_name("not"):
+            self._advance()
+            operand = self._not_expr()
+            return UnaryOp(op="not", operand=operand)
+        return self._comparison()
+
+    def _comparison(self) -> ASTNode:
+        node = self._bitwise_or()
+        if self._peek().kind in _COMPARISON_OPS:
+            op_str = _COMPARISON_OPS[self._advance().kind]
+            right = self._bitwise_or()
+            node = BinOp(left=node, op=op_str, right=right)
+        return node
+
+    def _bitwise_or(self) -> ASTNode:
+        node = self._bitwise_xor()
+        while self._peek().kind in _BITWISE_OR_OPS:
+            op_str = _BITWISE_OR_OPS[self._advance().kind]
+            right = self._bitwise_xor()
+            node = BinOp(left=node, op=op_str, right=right)
+        return node
+
+    def _bitwise_xor(self) -> ASTNode:
+        node = self._bitwise_and()
+        while self._peek().kind in _BITWISE_XOR_OPS:
+            op_str = _BITWISE_XOR_OPS[self._advance().kind]
+            right = self._bitwise_and()
+            node = BinOp(left=node, op=op_str, right=right)
+        return node
+
+    def _bitwise_and(self) -> ASTNode:
+        node = self._shift()
+        while self._peek().kind in _BITWISE_AND_OPS:
+            op_str = _BITWISE_AND_OPS[self._advance().kind]
+            right = self._shift()
+            node = BinOp(left=node, op=op_str, right=right)
+        return node
+
+    def _shift(self) -> ASTNode:
+        node = self._additive()
+        while self._peek().kind in _SHIFT_OPS:
+            op_str = _SHIFT_OPS[self._advance().kind]
+            right = self._additive()
+            node = BinOp(left=node, op=op_str, right=right)
+        return node
+
+    def _additive(self) -> ASTNode:
+        node = self._mult()
+        while self._peek().kind in _ADDITIVE_OPS:
+            op_str = _ADDITIVE_OPS[self._advance().kind]
+            right = self._mult()
+            node = BinOp(left=node, op=op_str, right=right)
+        return node
+
+    def _mult(self) -> ASTNode:
+        node = self._unary()
+        while self._peek().kind in _MULT_OPS:
+            op_str = _MULT_OPS[self._advance().kind]
+            right = self._unary()
+            node = BinOp(left=node, op=op_str, right=right)
+        return node
+
+    def _unary(self) -> ASTNode:
+        if self._match(TokenKind.MINUS):
+            self._advance()
+            operand = self._unary()
+            return UnaryOp(op="-", operand=operand)
+        if self._match(TokenKind.HASH):
+            self._advance()
+            operand = self._unary()
+            return UnaryOp(op="#", operand=operand)
+        return self._postfix()
+
+    def _postfix(self) -> ASTNode:
+        node = self._primary()
+        while True:
+            if self._match(TokenKind.DOT):
+                self._advance()
+                attr_tok = self._expect(TokenKind.NAME)
+                node = Attribute(obj=node, attr=str(attr_tok.value))
+            elif self._match(TokenKind.LBRACKET):
+                self._advance()
+                index = self._expr()
+                self._expect(TokenKind.RBRACKET)
+                node = Subscript(obj=node, index=index)
+            elif self._match(TokenKind.LPAREN):
+                self._advance()
+                args = self._arglist()
+                self._expect(TokenKind.RPAREN)
+                node = Call(func=node, args=tuple(args))
+            else:
+                break
+        return node
+
+    def _arglist(self) -> list[ASTNode]:
+        args: list[ASTNode] = []
+        if self._match(TokenKind.RPAREN):
+            return args
+        args.append(self._expr())
+        while self._match(TokenKind.COMMA):
+            self._advance()
+            args.append(self._expr())
+        return args
+
+    def _primary(self) -> ASTNode:
+        tok = self._peek()
+
+        if tok.kind == TokenKind.INTEGER:
+            self._advance()
+            return Literal(value=int(tok.value))  # type: ignore[arg-type]
+
+        if tok.kind == TokenKind.FLOAT:
+            self._advance()
+            return Literal(value=float(tok.value))  # type: ignore[arg-type]
+
+        if tok.kind == TokenKind.STRING:
+            self._advance()
+            return Literal(value=str(tok.value))
+
+        if tok.kind == TokenKind.NAME:
+            if tok.value is True:
+                self._advance()
+                return Literal(value=True)
+            if tok.value is False:
+                self._advance()
+                return Literal(value=False)
+            name_str = str(tok.value)
+            if name_str in _FORBIDDEN_NAMES:
+                raise ExpressionSyntaxError(
+                    f"Forbidden identifier {name_str!r} at position {tok.pos}",
+                    expr=self._source,
+                    pos=tok.pos,
+                )
+            self._advance()
+            return Name(name=name_str)
+
+        if tok.kind == TokenKind.LPAREN:
+            self._advance()
+            node = self._expr()
+            self._expect(TokenKind.RPAREN)
+            return node
+
+        if tok.kind == TokenKind.LBRACKET:
+            return self._list_literal()
+
+        if tok.kind == TokenKind.LBRACE:
+            return self._dict_literal()
+
+        raise ExpressionSyntaxError(
+            f"Unexpected token {tok.kind.name!r} ({tok.value!r}) at position {tok.pos}",
+            expr=self._source,
+            pos=tok.pos,
+        )
+
+    def _list_literal(self) -> ASTList:
+        self._expect(TokenKind.LBRACKET)
+        elements: list[ASTNode] = []
+        if not self._match(TokenKind.RBRACKET):
+            elements.append(self._expr())
+            while self._match(TokenKind.COMMA):
+                self._advance()
+                if self._match(TokenKind.RBRACKET):
+                    break
+                elements.append(self._expr())
+        self._expect(TokenKind.RBRACKET)
+        return ASTList(elements=tuple(elements))
+
+    def _dict_literal(self) -> Dict:
+        self._expect(TokenKind.LBRACE)
+        pairs: list[tuple[ASTNode, ASTNode]] = []
+        if not self._match(TokenKind.RBRACE):
+            key = self._expr()
+            self._expect(TokenKind.COLON)
+            value = self._expr()
+            pairs.append((key, value))
+            while self._match(TokenKind.COMMA):
+                self._advance()
+                if self._match(TokenKind.RBRACE):
+                    break
+                key = self._expr()
+                self._expect(TokenKind.COLON)
+                value = self._expr()
+                pairs.append((key, value))
+        self._expect(TokenKind.RBRACE)
+        return Dict(pairs=tuple(pairs))
+
+
+# ---------------------------------------------------------------------------
+# Public helper
+# ---------------------------------------------------------------------------
+
+
+def parse_expr(expr: str) -> ASTNode:
+    """Parse *expr* into an AST.
+
+    Raises
+    ------
+    ExpressionSyntaxError
+        On invalid syntax.
+    """
+    tokens = tokenize(expr)
+    return Parser(tokens, source=expr).parse()
