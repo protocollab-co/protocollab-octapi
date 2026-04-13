@@ -9,6 +9,7 @@ from app.models import ExecutionResult
 from app.services.error_mapper import NormalizedValidationError
 from app.services.lua_codegen import to_lua
 from app.services.template_selector import TemplateSelector
+from app.expression.ast_nodes import Call, Dict, List, Literal as ExprLiteral, Name as ExprName
 
 
 class Literal:
@@ -55,6 +56,32 @@ def test_to_lua_escapes_control_chars_in_string_literal():
     ast = Literal('line1\n"quoted"\tline2\\tail')
     lua_expr = to_lua(ast)
     assert lua_expr == '"line1\\n\\"quoted\\"\\tline2\\\\tail"'
+
+
+def test_to_lua_allows_safe_call_tonumber():
+    ast = Call(func=ExprName("tonumber"), args=(ExprLiteral("5"),))
+    lua_expr = to_lua(ast)
+    assert lua_expr == 'tonumber("5")'
+
+
+def test_to_lua_supports_nested_list_dict_tables():
+    ast = Dict(
+        pairs=(
+            (ExprLiteral("outer"), List(elements=(ExprLiteral(1), ExprLiteral(2)))),
+            (ExprLiteral(3), Dict(pairs=((ExprLiteral("x"), ExprLiteral(True)),))),
+        )
+    )
+    lua_expr = to_lua(ast, strict=True)
+    assert lua_expr == '{ ["outer"] = { 1, 2 }, [3] = { ["x"] = true } }'
+
+
+def test_to_lua_rejects_unsupported_dict_key_in_strict_mode():
+    ast = Dict(pairs=((ExprName("dynamic_key"), ExprLiteral("value")),))
+    try:
+        to_lua(ast, strict=True)
+        assert False, "Expected NormalizedValidationError"
+    except NormalizedValidationError as exc:
+        assert "Dict keys must be string or number literals" in exc.message
 
 
 def test_execute_with_inline_yaml_success(monkeypatch):
