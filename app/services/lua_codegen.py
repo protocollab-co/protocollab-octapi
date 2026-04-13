@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+import math
 from pathlib import Path
 import re
 from typing import Any
@@ -8,6 +10,23 @@ from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 from app.services.error_mapper import NormalizedValidationError
 
+logger = logging.getLogger(__name__)
+
+# Allowed function prefixes for Call nodes in to_lua (security allow-list)
+_ALLOWED_CALL_PREFIXES = (
+    "tonumber", "tostring", "type",
+    "pairs", "ipairs", "next",
+    "string.", "table.", "math.",
+    "select", "unpack",
+)
+
+
+def _is_allowed_call(func_name: str) -> bool:
+    return any(
+        func_name == prefix or func_name.startswith(prefix)
+        for prefix in _ALLOWED_CALL_PREFIXES
+    )
+
 
 def _map_operator(op: str) -> str:
     if op == "!=":
@@ -15,7 +34,31 @@ def _map_operator(op: str) -> str:
     return op
 
 
-def to_lua(node: Any) -> str:
+def _func_node_name(func_node: Any) -> str:
+    """Return a dotted name string for a Call's func node, or empty string."""
+    node_type = type(func_node).__name__
+    if node_type == "Name":
+        return getattr(func_node, "name", "")
+    if node_type == "Attribute":
+        parent = _func_node_name(getattr(func_node, "obj"))
+        attr = getattr(func_node, "attr", "")
+        if parent:
+            return f"{parent}.{attr}"
+        return attr
+    return ""
+
+
+def to_lua(node: Any, strict: bool = False) -> str:
+    """Transpile a protocollab/app.expression AST node to a Lua expression string.
+
+    Parameters
+    ----------
+    node:
+        Any AST node from app.expression.ast_nodes.
+    strict:
+        If True, raise NormalizedValidationError for unsupported nodes.
+        If False (default), log a warning and return ``"nil"``.
+    """
     node_type = type(node).__name__
 
     if node_type == "Literal":
@@ -39,35 +82,106 @@ def to_lua(node: Any) -> str:
         return getattr(node, "name")
 
     if node_type == "Attribute":
-        return f"{to_lua(getattr(node, 'obj'))}.{getattr(node, 'attr')}"
+        return f"{to_lua(getattr(node, 'obj'), strict)}.{getattr(node, 'attr')}"
 
     if node_type == "Subscript":
-        return f"{to_lua(getattr(node, 'obj'))}[{to_lua(getattr(node, 'index'))}]"
+        return f"{to_lua(getattr(node, 'obj'), strict)}[{to_lua(getattr(node, 'index'), strict)}]"
 
     if node_type == "UnaryOp":
-        op = _map_operator(getattr(node, "op"))
-        return f"({op} {to_lua(getattr(node, 'operand'))})"
+        op = getattr(node, "op")
+        operand = to_lua(getattr(node, "operand"), strict)
+        if op == "#":
+            return f"(#{operand})"
+        lua_op = _map_operator(op)
+        return f"({lua_op} {operand})"
 
     if node_type == "BinOp":
         op = _map_operator(getattr(node, "op"))
-        left = to_lua(getattr(node, "left"))
-        right = to_lua(getattr(node, "right"))
+        left = to_lua(getattr(node, "left"), strict)
+        right = to_lua(getattr(node, "right"), strict)
         return f"({left} {op} {right})"
 
     if node_type == "Ternary":
-        value_if_true = to_lua(getattr(node, "value_if_true"))
-        condition = to_lua(getattr(node, "condition"))
-        value_if_false = to_lua(getattr(node, "value_if_false"))
+        value_if_true = to_lua(getattr(node, "value_if_true"), strict)
+        condition = to_lua(getattr(node, "condition"), strict)
+        value_if_false = to_lua(getattr(node, "value_if_false"), strict)
         return f"(({condition}) and ({value_if_true}) or ({value_if_false}))"
 
-    raise NormalizedValidationError(
-        field="parameters.condition",
-        message=f"Unsupported AST node for Lua transpile: {node_type}",
-        expected="supported protocollab AST node",
-        got=node_type,
-        hint="Update to_lua mapping for this node type.",
-        source="template_selector",
-    )
+    if node_type == "Call":
+        func_node = getattr(node, "func")
+        func_name = _func_node_name(func_node)
+        args = getattr(node, "args", ())
+        args_lua = ", ".join(to_lua(a, strict) for a in args)
+        if func_name and _is_allowed_call(func_name):
+            return f"{func_name}({args_lua})"
+        # Disallowed call
+        msg = f"Call to '{func_name or '?'}' is not allowed in Lua transpile"
+        if strict:
+            raise NormalizedValidationError(
+                field="parameters.condition",
+                message=msg,
+                expected="allowed call: tonumber/tostring/type/string.*/table.*/math.*",
+                got=func_name or "unknown",
+                hint="Use only safe built-in Lua functions.",
+                source="template_selector",
+            )
+        logger.warning("to_lua: %s — returning nil", msg)
+        return "nil"
+
+    if node_type == "List":
+        elements = getattr(node, "elements", ())
+        elems_lua = ", ".join(to_lua(e, strict) for e in elements)
+        return f"{{ {elems_lua} }}"
+
+    if node_type == "Dict":
+        pairs = getattr(node, "pairs", ())
+        items_lua = []
+        for k, v in pairs:
+            key_type = type(k).__name__
+            if key_type != "Literal":
+                if strict:
+                    raise NormalizedValidationError(
+                        field="parameters.condition",
+                        message="Dict keys must be string or number literals for Lua transpile",
+                        expected="literal string or number key",
+                        got=key_type,
+                        hint="Use dictionary keys like {'name': value} or {1: value}.",
+                        source="template_selector",
+                    )
+                logger.warning("to_lua: dict key node '%s' is not a Literal — returning nil", key_type)
+                return "nil"
+
+            key_value = getattr(k, "value", None)
+            if not isinstance(key_value, (str, int, float)):
+                if strict:
+                    raise NormalizedValidationError(
+                        field="parameters.condition",
+                        message="Dict keys must be string or number literals for Lua transpile",
+                        expected="literal string or number key",
+                        got=str(type(key_value).__name__),
+                        hint="Use dictionary keys like {'name': value} or {1: value}.",
+                        source="template_selector",
+                    )
+                logger.warning("to_lua: dict key literal type '%s' unsupported — returning nil", type(key_value).__name__)
+                return "nil"
+
+            k_lua = to_lua(k, strict)
+            v_lua = to_lua(v, strict)
+            items_lua.append(f"[{k_lua}] = {v_lua}")
+        return "{ " + ", ".join(items_lua) + " }"
+
+    # Fallback for Lambda, Compare, Tuple, Slice, etc.
+    if strict:
+        raise NormalizedValidationError(
+            field="parameters.condition",
+            message=f"Unsupported AST node: {node_type}, please simplify expression",
+            expected="supported AST node (Literal/Name/Attribute/Subscript/UnaryOp/BinOp/Ternary/Call/List/Dict)",
+            got=node_type,
+            hint="Simplify the expression to use only supported constructs.",
+            source="template_selector",
+        )
+    logger.warning("to_lua: unsupported AST node type '%s' — returning nil", node_type)
+    return "nil"
 
 
 class LuaCodeGenerator:
@@ -113,13 +227,30 @@ class LuaCodeGenerator:
     @staticmethod
     def _require_number(params: dict[str, Any], key: str) -> float | int:
         value = params.get(key)
+        # Accept string representations of numbers
+        if isinstance(value, str):
+            try:
+                value = float(value)
+                if value == int(value):
+                    value = int(value)
+            except ValueError:
+                value = None
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             raise NormalizedValidationError(
                 field=f"parameters.{key}",
                 message=f"Missing or invalid required numeric parameter: {key}",
                 expected="number",
-                got=str(value),
+                got=str(params.get(key)),
                 hint="Provide numeric value for this parameter.",
+                source="template_selector",
+            )
+        if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+            raise NormalizedValidationError(
+                field=f"parameters.{key}",
+                message=f"Parameter {key} must be a finite number (not NaN or Inf)",
+                expected="finite number",
+                got=str(value),
+                hint="Provide a finite numeric value.",
                 source="template_selector",
             )
         return value
@@ -176,14 +307,14 @@ class LuaCodeGenerator:
         if operation == "array_filter":
             condition = self._require_string(clean_params, "condition")
             try:
-                from protocollab.expression import parse_expr  # type: ignore
+                from app.expression.parser import parse_expr
             except Exception as exc:
                 raise NormalizedValidationError(
                     field="parameters.condition",
-                    message=f"protocollab.expression.parse_expr unavailable: {exc}",
-                    expected="available protocollab expression parser",
+                    message=f"Expression parser unavailable: {exc}",
+                    expected="available app.expression parser",
                     got="missing parser",
-                    hint="Install protocollab package and retry.",
+                    hint="Ensure app/expression/ module is present.",
                     source="template_selector",
                 ) from exc
 
