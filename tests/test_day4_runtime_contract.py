@@ -19,7 +19,7 @@ class TestLuaStringEscaping:
 
     def test_to_lua_escapes_control_chars(self):
         """Control chars (\\n, \\r, \\t) must be escaped in Lua strings."""
-        from protocollab import expression
+        from app import expression
 
         # Test node with newline in string literal
         expr = expression.parse_expr('"hello\\nworld"')
