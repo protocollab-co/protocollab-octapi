@@ -6,6 +6,7 @@ import logging
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from httpx import HTTPError
 
 from app.config import get_settings
@@ -64,6 +65,7 @@ sandbox_executor = DockerSandboxExecutor(
 )
 
 app = FastAPI(title="LocalScript YAML API", version="0.1.0")
+app.mount("/hljs", StaticFiles(directory=str(_APP_ROOT / "templates" / "hljs")), name="hljs")
 
 
 def _to_feedback_item(exc: NormalizedValidationError) -> FeedbackItem:

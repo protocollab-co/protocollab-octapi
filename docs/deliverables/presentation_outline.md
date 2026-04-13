@@ -226,29 +226,29 @@ curl -X POST http://localhost:8000/execute \
 
 ### Slides/Diagrams
 
-1. **[docs/diagrams/day5_architecture.mmd](docs/diagrams/day5_architecture.mmd)**
+1. **[docs/diagrams/day5_architecture.mmd](../diagrams/day5_architecture.mmd)**
    - C4 architecture diagram showing all components
    - Color-coded: API (yellow), Services (gray), Protocollab (blue), Runtime (red)
    - Shows integration points and data flow
 
-2. **[docs/protocollab_integration.md](docs/protocollab_integration.md)**
+2. **[docs/protocollab_integration.md](./protocollab_integration.md)**
    - Detailed breakdown of each protocollab component
    - Code locations with line numbers
    - Integration evidence and test coverage
 
-3. **[docs/reference_scenario.md](docs/reference_scenario.md)**
+3. **[docs/reference_scenario.md](../verification/reference_scenario.md)**
    - Complete curl commands for demo
    - Expected responses and success criteria
    - End-to-end timeline estimates
 
 ### Supporting Docs
 
-4. **[docs/offline_verification.md](docs/offline_verification.md)**
+4. **[docs/offline_verification.md](../verification/offline_verification.md)**
    - Proof of no external API calls
    - Network isolation verification
    - Configuration hardcoding
 
-5. **[README.md](README.md)**
+5. **[README.md](../../README.md)**
    - Quick start (docker compose up)
    - Model installation
    - Configuration parameters

@@ -6,7 +6,7 @@
 - **Status**: READY FOR TESTING
 - **Dependency**: Docker containers running
 - **Scenario**: Array Last operation (Get last email from list)
-- **Documentation**: [docs/reference_scenario.md](../reference_scenario.md)
+- **Documentation**: [docs/reference_scenario.md](./reference_scenario.md)
 - **Curl Commands**: Prepared and tested
 - **Expected Result**: exit_code=0, stdout="charlie@example.com"
 
@@ -15,7 +15,7 @@
 - **Dependency**: Docker containers + GPU available
 - **Model**: qwen2.5-coder:1.5b
 - **Measurement Tool**: nvidia-smi -lms 100
-- **Documentation**: [docs/vram_measurement.md](../vram_measurement.md)
+- **Documentation**: [docs/vram_measurement.md](./vram_measurement.md)
 - **Expected Result**: Peak < 8 GB
 
 ### 3. ✅ Проект запускается по README без ручных шагов
@@ -29,13 +29,13 @@
 ### 4. ✅ Все обязательные артефакты готовы и доступны
 - **Status**: COMPLETE
 - **Artifacts**:
-  - ✅ [docs/reference_scenario.md](../reference_scenario.md) — Reference test + examples
-  - ✅ [docs/vram_measurement.md](../vram_measurement.md) — VRAM results (pending data)
-  - ✅ [docs/offline_verification.md](../offline_verification.md) — No external APIs proof
-  - ✅ [docs/protocollab_integration.md](../protocollab_integration.md) — Integration details
+  - ✅ [docs/reference_scenario.md](./reference_scenario.md) — Reference test + examples
+  - ✅ [docs/vram_measurement.md](./vram_measurement.md) — VRAM results (pending data)
+  - ✅ [docs/offline_verification.md](./offline_verification.md) — No external APIs proof
+  - ✅ [docs/protocollab_integration.md](../deliverables/protocollab_integration.md) — Integration details
   - ✅ [docs/diagrams/day5_architecture.mmd](../diagrams/day5_architecture.mmd) — C4 diagram
-  - ✅ [docs/presentation_outline.md](../presentation_outline.md) — 7-min presentation
-  - ✅ [docs/demo_video.md](../demo_video.md) — Recording plan
+  - ✅ [docs/presentation_outline.md](../deliverables/presentation_outline.md) — 7-min presentation
+  - ✅ [docs/demo_video.md](../deliverables/demo_video.md) — Recording plan
 
 ### 5. ✅ На защите можно показать сквозной путь с protocollab
 - **Status**: READY FOR DEMO
@@ -45,7 +45,7 @@
   - protocollab.expression (lua_codegen.py:179) ✓
 - **Demo Scenario**: Array Last (exercises all components)
 - **Backup Scenarios**: Array Filter condition, Error loop
-- **Documentation**: [docs/protocollab_integration.md](../protocollab_integration.md) ✓
+- **Documentation**: [docs/protocollab_integration.md](../deliverables/protocollab_integration.md) ✓
 
 ---
 

@@ -4,9 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>LocalScript YAML API - Enhanced Demo</title>
-  <!-- Highlight.js for syntax highlighting -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11/styles/atom-one-light.css">
-  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/"></script>
+  <!-- Highlight.js for syntax highlighting (vendored locally) -->
+  <link rel="stylesheet" href="/hljs/atom-one-light.min.css">
+  <script src="/hljs/highlight.min.js"></script>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -303,7 +303,7 @@
 
     <!-- HISTORY SECTION -->
     <div class="section history-section">
-      <h2>📋 История сесssий</h2>
+      <h2>📋 История сессий</h2>
       <p id="historyEmpty" style="color: #999;">История будет заполняться по мере использования...</p>
       <table id="historyTable" class="history-table hidden">
         <thead>
@@ -456,19 +456,38 @@
       
       empty.style.display = 'none';
       table.classList.remove('hidden');
-      tbody.innerHTML = demoHistory.map((h, i) => `
-        <tr>
-          <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">${h.prompt}</td>
-          <td>${h.operation || 'pending'}</td>
-          <td style="font-size: 11px;">${h.timestamp}</td>
-          <td><button class="secondary" onclick="restoreHistory(${demoHistory.length - 1 - i})" style="padding: 4px 8px; font-size: 11px;">Восстановить</button></td>
-        </tr>
-      `).join('');
+      tbody.replaceChildren();
+      demoHistory.forEach((h, i) => {
+        const tr = document.createElement('tr');
+
+        const tdPrompt = document.createElement('td');
+        tdPrompt.style.cssText = 'max-width: 300px; overflow: hidden; text-overflow: ellipsis;';
+        tdPrompt.textContent = h.prompt;
+
+        const tdOp = document.createElement('td');
+        tdOp.textContent = h.operation || 'pending';
+
+        const tdTs = document.createElement('td');
+        tdTs.style.fontSize = '11px';
+        tdTs.textContent = h.timestamp;
+
+        const btn = document.createElement('button');
+        btn.className = 'secondary';
+        btn.style.cssText = 'padding: 4px 8px; font-size: 11px;';
+        btn.textContent = 'Восстановить';
+        btn.addEventListener('click', () => restoreHistory(i));
+
+        const tdBtn = document.createElement('td');
+        tdBtn.appendChild(btn);
+
+        tr.append(tdPrompt, tdOp, tdTs, tdBtn);
+        tbody.appendChild(tr);
+      });
     }
 
-    function saveToHistory(prompt, operation) {
+    function saveToHistory(prompt, operation, contextJson) {
       const now = new Date().toLocaleTimeString('ru-RU');
-      demoHistory.unshift({ prompt, operation, timestamp: now });
+      demoHistory.unshift({ prompt, operation, contextJson, timestamp: now });
       if (demoHistory.length > 10) demoHistory.pop();
       localStorage.setItem('demo_history', JSON.stringify(demoHistory));
       updateHistory();
@@ -477,8 +496,13 @@
     function loadFromStorage() {
       const stored = localStorage.getItem('demo_history');
       if (stored) {
-        demoHistory = JSON.parse(stored);
-        updateHistory();
+        try {
+          demoHistory = JSON.parse(stored);
+          updateHistory();
+        } catch (e) {
+          console.warn('Failed to parse demo history from localStorage:', e);
+          localStorage.removeItem('demo_history');
+        }
       }
     }
 
@@ -559,7 +583,8 @@
           showStatus('generateStatus', `✓ YAML сгенерирована (попытка ${data.attempts})`, 'success');
           document.getElementById('executeSection').classList.remove('hidden');
           document.getElementById('operationText').textContent = `Операция: ${currentYaml.operation || '?'}`;
-          saveToHistory(prompt, currentYaml.operation);
+          const contextStr = document.getElementById('contextJson').value.trim();
+          saveToHistory(prompt, currentYaml.operation, contextStr);
         } else {
           showStatus('generateStatus', `❌ Валидация не прошла (попытка ${data.attempts})`, 'error');
           if (data.feedback && data.feedback.length > 0) {

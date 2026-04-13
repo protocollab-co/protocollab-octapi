@@ -39,8 +39,8 @@ Duration: [Seconds]
 
 ### Status
 
-- ✅ **PASS** — Peak VRAM < 8 GB
-- **Margin**: [8 - VALUE] GB remaining
+- ⏳ **PENDING** — Measurement not yet executed; GPU access required
+- **Expected**: Peak VRAM < 8 GB (model ~1.5-2 GB + KV cache ~1-1.5 GB + buffers ~1-2 GB = ~4-5 GB estimated)
 
 ---
 
@@ -65,7 +65,7 @@ The qwen2.5-coder:1.5b model in 4-bit quantization efficiently runs within the 8
 
 - **Date**: April 13, 2026
 - **Duration**: ~5-10 seconds (generation + execution)
-- **Status**: ✅ COMPLETE
+- **Status**: ⏳ PENDING — measurement not yet executed
 - **Result**: [PENDING - Will be filled during Phase 3 execution]
 
 ---

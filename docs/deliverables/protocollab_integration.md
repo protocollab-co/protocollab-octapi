@@ -21,7 +21,7 @@ Protocollab provides three key components that power the validation and code gen
 ## Component 1: YAML Serializer Integration
 
 ### Location
-[**app/services/yaml_pipeline.py**](app/services/yaml_pipeline.py#L38) — Lines 38-71
+[**app/services/yaml_pipeline.py**](../../app/services/yaml_pipeline.py#L38) — Lines 38-71
 
 ### Code
 ```python
@@ -67,7 +67,7 @@ When executing the reference scenario (see `docs/reference_scenario.md`), the sy
 ## Component 2: JSON Schema Validator Integration
 
 ### Location
-[**app/services/yaml_pipeline.py**](app/services/yaml_pipeline.py#L98) — Lines 98-120
+[**app/services/yaml_pipeline.py**](../../app/services/yaml_pipeline.py#L98) — Lines 98-120
 
 ### Code
 ```python
@@ -113,7 +113,7 @@ When executing the reference scenario:
 ## Component 3: Expression Parser Integration
 
 ### Location
-[**app/services/lua_codegen.py**](app/services/lua_codegen.py#L179) — Lines 179-203
+[**app/services/lua_codegen.py**](../../app/services/lua_codegen.py#L179) — Lines 179-203
 
 ### Code
 ```python
@@ -238,11 +238,11 @@ Generated YAML:
 ## Supporting Evidence
 
 ### Dependency Declaration
-[**requirements.txt**](requirements.txt) — Line 11
+[**requirements.txt**](../../requirements.txt) — Line 11
 ```
-protocollab @ git+https://github.com/protocollab-co/protocollab.git@main#egg=protocollab
+-e ./third_party/protocollab
 ```
-✅ Explicit dependency on protocollab from main branch (open-source, auditable)
+✅ Protocollab installed as a local editable package from the vendored submodule
 
 ### Submodule Integration
 [**third_party/protocollab/**](third_party/protocollab/) — Git submodule

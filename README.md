@@ -285,12 +285,12 @@ pytest tests/test_day1_generate.py tests/test_day2_generate.py tests/test_day3_e
 - **Результат**: Успешно (is_complete=true, exit_code=0)
 - **Время выполнения**: ~5-10 сек (generate + execute)
 
-#### 2. ✅ Пиковая VRAM
+#### 2. ⏳ Пиковая VRAM
 - **Модель**: qwen2.5-coder:1.5b
 - **Параметры**: num_ctx=4096, num_predict=256, batch=1, parallel=1
-- **Пиковая VRAM**: < 8 GB (требование hackathon)
+- **Ожидаемая VRAM**: < 8 GB (estimated: ~4-5 GB)
 - **Документация**: [docs/verification/vram_measurement.md](docs/verification/vram_measurement.md)
-- **Статус**: PASS
+- **Статус**: PENDING — измерение не выполнено (GPU доступ обязателен)
 
 #### 3. ✅ Запуск по README (Clean Environment)
 - **One-command**: `docker-compose up`
@@ -305,6 +305,7 @@ pytest tests/test_day1_generate.py tests/test_day2_generate.py tests/test_day3_e
   - Grep код на OpenAI/Anthropic/HuggingFace: 0 matches
   - Ollama endpoint hardcoded на localhost:11434
   - Docker sandbox: --network none (изолированная сеть)
+  - Syntax highlighting: vendored локально (без CDN)
 
 #### 5. ✅ Protocollab Integration (3 компонента)
 - **Документация**: [docs/deliverables/protocollab_integration.md](docs/deliverables/protocollab_integration.md)
@@ -353,7 +354,7 @@ grep -r "yaml_serializer\|jsonschema_validator\|protocollab.expression" app/
 ### Definition of Done ✅
 
 - ✅ Эталонный запрос проходит успешно
-- ✅ Пиковый VRAM ≤ 8 GB
+- ⏳ Пиковый VRAM ≤ 8 GB (PENDING — ожидается измерение)
 - ✅ Проект запускается по README без команд вне документации
 - ✅ Все обязательные артефакты готовы и доступны
 - ✅ На защите можно показать сквозной путь с участием protocollab

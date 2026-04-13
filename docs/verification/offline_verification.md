@@ -98,6 +98,7 @@ payload = {
 3. **Frontend** → **API Server** (localhost:8000)
    - WebSocket or HTTP from browser to API
    - No external calls initiated by frontend
+   - Syntax highlighting served from vendored local assets (`/hljs/`, inside the container)
 
 ### Commands to Verify Network Isolation
 
@@ -124,11 +125,11 @@ tcpdump -i any 'not (tcp port 22 or dns)' -w traffic.pcap
 services:
   api:
     networks:
-      - internal  # Custom bridge network, no outbound NAT
+      - localscript-net  # Custom bridge network
   
   ollama:
     networks:
-      - internal  # Only connected to internal network
+      - localscript-net  # Only connected to internal network
 ```
 
 ### `sandbox_executor.py` — Lua Runtime Network Isolation
@@ -143,13 +144,13 @@ docker_run_cmd = [
     "--security-opt", "no-new-privileges",
     "--read-only",
     "--tmpfs", "/tmp:rw,noexec,size=16m",
-    "--pids-limit", "1",
-    "--user", "nobody",
+    "--pids-limit", "64",
+    "--user", "65534:65534",
     "--memory", f"{self.memory_mb}m",
     "--cpus", "1",
-    "--timeout", f"{self.timeout_seconds}s",
+    "-v", f"{script_path}:/work/script.lua:ro",
     self.docker_image,
-    "lua", "-",
+    "lua", "/work/script.lua",
 ]
 ```
 
@@ -158,7 +159,9 @@ docker_run_cmd = [
 - ✅ `--cap-drop ALL` — All Linux capabilities dropped
 - ✅ `--security-opt no-new-privileges` — Cannot gain privileges
 - ✅ `--read-only` — Filesystem read-only (except /tmp)
-- ✅ `--user nobody` — Runs as unprivileged user
+- ✅ `--user 65534:65534` — Runs as nobody (numeric UID for portability)
+- ✅ `--pids-limit 64` — Fork-bomb protection
+- ✅ Script passed via read-only bind-mount (not stdin)
 - ✅ No API keys, credentials, or environment variables passed
 
 ---
@@ -177,7 +180,7 @@ httpx==0.25.2
 PyYAML==6.0.1
 jinja2==3.1.2
 pytest==7.4.3
-protocollab @ git+https://github.com/protocollab-co/protocollab.git@main#egg=protocollab
+-e ./third_party/protocollab
 ```
 
 **Analysis**:
