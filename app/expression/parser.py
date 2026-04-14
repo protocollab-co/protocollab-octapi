@@ -16,13 +16,10 @@ Grammar (PEG-style, highest precedence last)
     shift       = additive (('<<' | '>>') additive)*
     additive    = mult (('+' | '-') mult)*
     mult        = unary (('*' | '/' | '//' | '%') unary)*
-    unary       = '-' unary | '#' unary | postfix
-    postfix     = primary ('.' NAME | '[' expr ']' | '(' arglist ')')*
-    primary     = INTEGER | FLOAT | STRING | 'true' | 'false'
-                | NAME | '(' expr ')' | '[' list_items ']' | '{' dict_items '}'
-    arglist     = (expr (',' expr)*)? 
-    list_items  = (expr (',' expr)*)?
-    dict_items  = (expr ':' expr (',' expr ':' expr)*)?
+    unary       = '-' unary | postfix
+    postfix     = primary ('.' NAME | '[' expr ']')*
+    primary     = INTEGER | STRING | 'true' | 'false'
+                | NAME | '(' expr ')'
 """
 
 from __future__ import annotations
@@ -33,14 +30,18 @@ from app.expression.ast_nodes import (
     ASTNode,
     Attribute,
     BinOp,
-    Call,
-    Dict,
-    List as ASTList,
+    Comprehension,
+    DictLiteral,
+    InOp,
+    ListLiteral,
     Literal,
+    Match,
+    MatchCase,
     Name,
     Subscript,
     Ternary,
     UnaryOp,
+    Wildcard,
 )
 from app.expression.lexer import (
     ExpressionSyntaxError,
@@ -103,6 +104,7 @@ _FORBIDDEN_NAMES: frozenset[str] = frozenset(
         "locals",
         "vars",
         "dir",
+        "type",
     }
 )
 
@@ -121,6 +123,12 @@ class Parser:
 
     def _peek(self) -> Token:
         return self._tokens[self._pos]
+
+    def _peek_n(self, offset: int) -> Token:
+        idx = self._pos + offset
+        if idx >= len(self._tokens):
+            return self._tokens[-1]
+        return self._tokens[idx]
 
     def _advance(self) -> Token:
         tok = self._tokens[self._pos]
@@ -146,6 +154,97 @@ class Parser:
         tok = self._peek()
         return tok.kind == TokenKind.NAME and tok.value in names
 
+    def _parse_from_token_slice(self, tokens: list[Token]) -> ASTNode:
+        if not tokens:
+            raise ExpressionSyntaxError(
+                "Expected expression",
+                expr=self._source,
+                pos=self._peek().pos,
+            )
+        if tokens[-1].kind != TokenKind.EOF:
+            eof_pos = tokens[-1].pos
+            tokens = [*tokens, Token(kind=TokenKind.EOF, value=None, pos=eof_pos)]
+        return Parser(tokens, source=self._source).parse()
+
+    def _parse_until_case_separator(self) -> ASTNode:
+        start = self._pos
+        paren = 0
+        bracket = 0
+        brace = 0
+
+        while True:
+            tok = self._peek()
+            if tok.kind == TokenKind.EOF:
+                break
+            if tok.kind == TokenKind.PIPE and paren == 0 and bracket == 0 and brace == 0:
+                break
+            if tok.kind == TokenKind.RPAREN and paren == 0 and bracket == 0 and brace == 0:
+                break
+
+            if tok.kind == TokenKind.LPAREN:
+                paren += 1
+            elif tok.kind == TokenKind.RPAREN:
+                paren -= 1
+            elif tok.kind == TokenKind.LBRACKET:
+                bracket += 1
+            elif tok.kind == TokenKind.RBRACKET:
+                bracket -= 1
+            elif tok.kind == TokenKind.LBRACE:
+                brace += 1
+            elif tok.kind == TokenKind.RBRACE:
+                brace -= 1
+
+            self._advance()
+
+        body_tokens = self._tokens[start : self._pos]
+        return self._parse_from_token_slice(body_tokens)
+
+    def _parse_until_delimiters(
+        self,
+        stop_kinds: set[TokenKind] | None = None,
+        stop_names: set[str] | None = None,
+    ) -> ASTNode:
+        stop_kinds = set() if stop_kinds is None else set(stop_kinds)
+        stop_names = set() if stop_names is None else set(stop_names)
+        start = self._pos
+        paren = 0
+        bracket = 0
+        brace = 0
+
+        while True:
+            tok = self._peek()
+            if tok.kind == TokenKind.EOF:
+                break
+            if paren == 0 and bracket == 0 and brace == 0:
+                if tok.kind in stop_kinds:
+                    break
+                if tok.kind == TokenKind.NAME and str(tok.value) in stop_names:
+                    break
+
+            if tok.kind == TokenKind.LPAREN:
+                paren += 1
+            elif tok.kind == TokenKind.RPAREN:
+                if paren == 0:
+                    break
+                paren -= 1
+            elif tok.kind == TokenKind.LBRACKET:
+                bracket += 1
+            elif tok.kind == TokenKind.RBRACKET:
+                if bracket == 0:
+                    break
+                bracket -= 1
+            elif tok.kind == TokenKind.LBRACE:
+                brace += 1
+            elif tok.kind == TokenKind.RBRACE:
+                if brace == 0:
+                    break
+                brace -= 1
+
+            self._advance()
+
+        expr_tokens = self._tokens[start : self._pos]
+        return self._parse_from_token_slice(expr_tokens)
+
     # ------------------------------------------------------------------
     # Grammar rules
     # ------------------------------------------------------------------
@@ -166,9 +265,10 @@ class Parser:
         return self._ternary()
 
     def _ternary(self) -> ASTNode:
+        # value_if_true 'if' condition 'else' value_if_false
         node = self._or_expr()
         if self._match_name("if"):
-            self._advance()
+            self._advance()  # consume 'if'
             condition = self._or_expr()
             if not self._match_name("else"):
                 raise ExpressionSyntaxError(
@@ -176,7 +276,7 @@ class Parser:
                     expr=self._source,
                     pos=self._peek().pos,
                 )
-            self._advance()
+            self._advance()  # consume 'else'
             value_if_false = self._or_expr()
             return Ternary(
                 value_if_true=node,
@@ -206,7 +306,15 @@ class Parser:
             self._advance()
             operand = self._not_expr()
             return UnaryOp(op="not", operand=operand)
-        return self._comparison()
+        return self._in_expr()
+
+    def _in_expr(self) -> ASTNode:
+        node = self._comparison()
+        while self._match_name("in"):
+            self._advance()
+            right = self._comparison()
+            node = InOp(left=node, right=right)
+        return node
 
     def _comparison(self) -> ASTNode:
         node = self._bitwise_or()
@@ -269,10 +377,6 @@ class Parser:
             self._advance()
             operand = self._unary()
             return UnaryOp(op="-", operand=operand)
-        if self._match(TokenKind.HASH):
-            self._advance()
-            operand = self._unary()
-            return UnaryOp(op="#", operand=operand)
         return self._postfix()
 
     def _postfix(self) -> ASTNode:
@@ -287,24 +391,9 @@ class Parser:
                 index = self._expr()
                 self._expect(TokenKind.RBRACKET)
                 node = Subscript(obj=node, index=index)
-            elif self._match(TokenKind.LPAREN):
-                self._advance()
-                args = self._arglist()
-                self._expect(TokenKind.RPAREN)
-                node = Call(func=node, args=tuple(args))
             else:
                 break
         return node
-
-    def _arglist(self) -> list[ASTNode]:
-        args: list[ASTNode] = []
-        if self._match(TokenKind.RPAREN):
-            return args
-        args.append(self._expr())
-        while self._match(TokenKind.COMMA):
-            self._advance()
-            args.append(self._expr())
-        return args
 
     def _primary(self) -> ASTNode:
         tok = self._peek()
@@ -313,21 +402,28 @@ class Parser:
             self._advance()
             return Literal(value=int(tok.value))  # type: ignore[arg-type]
 
-        if tok.kind == TokenKind.FLOAT:
-            self._advance()
-            return Literal(value=float(tok.value))  # type: ignore[arg-type]
-
         if tok.kind == TokenKind.STRING:
             self._advance()
             return Literal(value=str(tok.value))
 
         if tok.kind == TokenKind.NAME:
+            if (
+                tok.value in {"any", "all", "first", "filter", "map"}
+                and self._peek_n(1).kind == TokenKind.LPAREN
+            ):
+                return self._parse_comprehension_or_first_simple()
+
+            if tok.value == "match":
+                return self._parse_match()
+
+            # true / false literals
             if tok.value is True:
                 self._advance()
                 return Literal(value=True)
             if tok.value is False:
                 self._advance()
                 return Literal(value=False)
+            # Forbidden identifiers
             name_str = str(tok.value)
             if name_str in _FORBIDDEN_NAMES:
                 raise ExpressionSyntaxError(
@@ -338,17 +434,17 @@ class Parser:
             self._advance()
             return Name(name=name_str)
 
+        if tok.kind == TokenKind.LBRACKET:
+            return self._parse_list_literal()
+
+        if tok.kind == TokenKind.LBRACE:
+            return self._parse_dict_literal()
+
         if tok.kind == TokenKind.LPAREN:
             self._advance()
             node = self._expr()
             self._expect(TokenKind.RPAREN)
             return node
-
-        if tok.kind == TokenKind.LBRACKET:
-            return self._list_literal()
-
-        if tok.kind == TokenKind.LBRACE:
-            return self._dict_literal()
 
         raise ExpressionSyntaxError(
             f"Unexpected token {tok.kind.name!r} ({tok.value!r}) at position {tok.pos}",
@@ -356,37 +452,146 @@ class Parser:
             pos=tok.pos,
         )
 
-    def _list_literal(self) -> ASTList:
+    def _parse_list_literal(self) -> ASTNode:
         self._expect(TokenKind.LBRACKET)
         elements: list[ASTNode] = []
         if not self._match(TokenKind.RBRACKET):
-            elements.append(self._expr())
-            while self._match(TokenKind.COMMA):
-                self._advance()
-                if self._match(TokenKind.RBRACKET):
-                    break
+            while True:
                 elements.append(self._expr())
+                if self._match(TokenKind.COMMA):
+                    self._advance()
+                    continue
+                break
         self._expect(TokenKind.RBRACKET)
-        return ASTList(elements=tuple(elements))
+        return ListLiteral(elements=elements)
 
-    def _dict_literal(self) -> Dict:
+    def _parse_dict_literal(self) -> ASTNode:
         self._expect(TokenKind.LBRACE)
-        pairs: list[tuple[ASTNode, ASTNode]] = []
+        keys: list[ASTNode] = []
+        values: list[ASTNode] = []
         if not self._match(TokenKind.RBRACE):
-            key = self._expr()
-            self._expect(TokenKind.COLON)
-            value = self._expr()
-            pairs.append((key, value))
-            while self._match(TokenKind.COMMA):
-                self._advance()
-                if self._match(TokenKind.RBRACE):
-                    break
-                key = self._expr()
+            while True:
+                key_node = self._expr()
                 self._expect(TokenKind.COLON)
-                value = self._expr()
-                pairs.append((key, value))
+                value_node = self._expr()
+                keys.append(key_node)
+                values.append(value_node)
+                if self._match(TokenKind.COMMA):
+                    self._advance()
+                    continue
+                break
         self._expect(TokenKind.RBRACE)
-        return Dict(pairs=tuple(pairs))
+        return DictLiteral(keys=keys, values=values)
+
+    def _parse_comprehension_or_first_simple(self) -> ASTNode:
+        kind_tok = self._expect(TokenKind.NAME)
+        kind = str(kind_tok.value)
+        self._expect(TokenKind.LPAREN)
+
+        first_expr = self._expr()
+        if self._match_name("for"):
+            self._advance()
+            var_tok = self._expect(TokenKind.NAME)
+            var_name = str(var_tok.value)
+            if var_name in _FORBIDDEN_NAMES:
+                raise ExpressionSyntaxError(
+                    f"Forbidden identifier {var_name!r} at position {var_tok.pos}",
+                    expr=self._source,
+                    pos=var_tok.pos,
+                )
+            if not self._match_name("in"):
+                raise ExpressionSyntaxError(
+                    "Expected 'in' in comprehension",
+                    expr=self._source,
+                    pos=self._peek().pos,
+                )
+            self._advance()
+            iterable = self._parse_until_delimiters(
+                stop_kinds={TokenKind.RPAREN},
+                stop_names={"if"},
+            )
+            condition = None
+            if self._match_name("if"):
+                self._advance()
+                condition = self._expr()
+            self._expect(TokenKind.RPAREN)
+            return Comprehension(
+                kind=kind,
+                expr=first_expr,
+                var=Name(name=var_name),
+                iterable=iterable,
+                condition=condition,
+            )
+
+        if kind == "first":
+            self._expect(TokenKind.RPAREN)
+            item_name = Name(name="_item")
+            return Comprehension(
+                kind="first",
+                expr=item_name,
+                var=item_name,
+                iterable=first_expr,
+                condition=None,
+            )
+
+        raise ExpressionSyntaxError(
+            f"Expected comprehension syntax for '{kind}'",
+            expr=self._source,
+            pos=self._peek().pos,
+        )
+
+    def _parse_match_pattern(self) -> ASTNode:
+        tok = self._peek()
+        if tok.kind == TokenKind.NAME and tok.value == "_":
+            self._advance()
+            return Wildcard()
+        if tok.kind == TokenKind.INTEGER:
+            self._advance()
+            return Literal(value=int(tok.value))  # type: ignore[arg-type]
+        if tok.kind == TokenKind.STRING:
+            self._advance()
+            return Literal(value=str(tok.value))
+        if tok.kind == TokenKind.NAME and tok.value in (True, False):
+            self._advance()
+            return Literal(value=bool(tok.value))
+        raise ExpressionSyntaxError(
+            f"Invalid match pattern at position {tok.pos}: {tok.value!r}",
+            expr=self._source,
+            pos=tok.pos,
+        )
+
+    def _parse_match(self) -> ASTNode:
+        self._expect(TokenKind.NAME)  # match
+        subject = self._expr()
+        if not self._match_name("with"):
+            raise ExpressionSyntaxError(
+                "Expected 'with' in match expression",
+                expr=self._source,
+                pos=self._peek().pos,
+            )
+        self._advance()
+
+        cases: list[MatchCase] = []
+        else_case: ASTNode | None = None
+
+        while True:
+            if self._match_name("else"):
+                self._advance()
+                self._expect(TokenKind.ARROW)
+                else_case = self._expr()
+                break
+
+            pattern = self._parse_match_pattern()
+            self._expect(TokenKind.ARROW)
+            body = self._parse_until_case_separator()
+            cases.append(MatchCase(pattern=pattern, body=body))
+
+            if self._match(TokenKind.PIPE):
+                self._advance()
+                continue
+            break
+
+        return Match(subject=subject, cases=cases, else_case=else_case)
 
 
 # ---------------------------------------------------------------------------
@@ -397,10 +602,21 @@ class Parser:
 def parse_expr(expr: str) -> ASTNode:
     """Parse *expr* into an AST.
 
+    Parameters
+    ----------
+    expr:
+        Expression string, e.g. ``"has_checksum != 0"`` or
+        ``"total_length - 8"``.
+
+    Returns
+    -------
+    ASTNode
+        Root of the parsed AST.
+
     Raises
     ------
     ExpressionSyntaxError
-        On invalid syntax.
+        On any lexical or syntactic error.
     """
     tokens = tokenize(expr)
     return Parser(tokens, source=expr).parse()

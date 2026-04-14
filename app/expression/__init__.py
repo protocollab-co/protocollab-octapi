@@ -1,20 +1,21 @@
-"""app.expression — local copy of protocollab.expression, extended for OctAPI.
-
-Provides a safe expression engine used to transpile array_filter conditions to Lua.
-"""
+"""app.expression — safe expression engine for protocol spec fields."""
 
 from app.expression.ast_nodes import (
     ASTNode,
     Attribute,
     BinOp,
-    Call,
-    Dict,
-    List,
+    Comprehension,
+    DictLiteral,
+    InOp,
+    ListLiteral,
     Literal,
+    Match,
+    MatchCase,
     Name,
     Subscript,
     Ternary,
     UnaryOp,
+    Wildcard,
 )
 from app.expression.evaluator import ExpressionEvalError, evaluate
 from app.expression.lexer import ExpressionSyntaxError, Token, TokenKind, tokenize
@@ -28,12 +29,16 @@ __all__ = [
     "Name",
     "Attribute",
     "Subscript",
+    "ListLiteral",
+    "DictLiteral",
+    "InOp",
+    "Comprehension",
+    "MatchCase",
+    "Match",
+    "Wildcard",
     "UnaryOp",
     "BinOp",
     "Ternary",
-    "Call",
-    "List",
-    "Dict",
     # Lexer
     "Token",
     "TokenKind",

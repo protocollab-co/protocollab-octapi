@@ -87,6 +87,17 @@ def to_lua(node: Any, strict: bool = False) -> str:
     if node_type == "Subscript":
         return f"{to_lua(getattr(node, 'obj'), strict)}[{to_lua(getattr(node, 'index'), strict)}]"
 
+    if node_type == "InOp":
+        left = to_lua(getattr(node, "left"), strict)
+        right = to_lua(getattr(node, "right"), strict)
+        # Inline membership helper to keep expression pure and sandbox-safe.
+        return (
+            "((function(__l,__r) "
+            "if type(__r) == 'table' then for _,__v in ipairs(__r) do if __v == __l then return true end end end "
+            "return false end)("
+            f"{left}, {right}))"
+        )
+
     if node_type == "UnaryOp":
         op = getattr(node, "op")
         operand = to_lua(getattr(node, "operand"), strict)
@@ -128,10 +139,20 @@ def to_lua(node: Any, strict: bool = False) -> str:
         logger.warning("to_lua: %s — returning nil", msg)
         return "nil"
 
-    if node_type == "List":
+    if node_type in {"List", "ListLiteral"}:
         elements = getattr(node, "elements", ())
         elems_lua = ", ".join(to_lua(e, strict) for e in elements)
         return f"{{ {elems_lua} }}"
+
+    if node_type == "DictLiteral":
+        keys = getattr(node, "keys", ())
+        values = getattr(node, "values", ())
+        items_lua = []
+        for k, v in zip(keys, values):
+            k_lua = to_lua(k, strict)
+            v_lua = to_lua(v, strict)
+            items_lua.append(f"[{k_lua}] = {v_lua}")
+        return "{ " + ", ".join(items_lua) + " }"
 
     if node_type == "Dict":
         pairs = getattr(node, "pairs", ())
@@ -175,7 +196,7 @@ def to_lua(node: Any, strict: bool = False) -> str:
         raise NormalizedValidationError(
             field="parameters.condition",
             message=f"Unsupported AST node: {node_type}, please simplify expression",
-            expected="supported AST node (Literal/Name/Attribute/Subscript/UnaryOp/BinOp/Ternary/Call/List/Dict)",
+            expected="supported AST node (Literal/Name/Attribute/Subscript/UnaryOp/BinOp/Ternary/InOp/ListLiteral/DictLiteral)",
             got=node_type,
             hint="Simplify the expression to use only supported constructs.",
             source="template_selector",
@@ -199,6 +220,14 @@ class LuaCodeGenerator:
     _LUA_EXPR_PATTERN = re.compile(
         r'^(?:wf\.vars|item)(?:\.[A-Za-z_][A-Za-z0-9_]*|\[[0-9]+\]|\["[A-Za-z0-9_\- ]+"\])*$',
     )
+    _BARE_PATH_PATTERN = re.compile(
+        r'^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*|\[[0-9]+\]|\["[A-Za-z0-9_\- ]+"\])*$',
+    )
+    _DOLLAR_NAME_PATTERN = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)")
+    _LENGTH_CALL_PATTERN = re.compile(r"\b(?:length|len)\s*\(([^\)]*)\)")
+    _ISINSTANCE_LIST_PATTERN = re.compile(r"\bisinstance\s*\(([^,]+),\s*list\s*\)")
+    _AT_PLACEHOLDER_PATTERN = re.compile(r"(?<![A-Za-z0-9_])@(?![A-Za-z0-9_])")
+    _NOT_DASH_PATTERN = re.compile(r"\bnot\s*-\s*")
 
     @staticmethod
     def _escape_lua_string(value: Any) -> str:
@@ -213,6 +242,7 @@ class LuaCodeGenerator:
 
     def _require_lua_expression(self, params: dict[str, Any], key: str) -> str:
         value = self._require_string(params, key)
+        value = self._normalize_lua_expression(value)
         if not self._LUA_EXPR_PATTERN.fullmatch(value):
             raise NormalizedValidationError(
                 field=f"parameters.{key}",
@@ -223,6 +253,58 @@ class LuaCodeGenerator:
                 source="template_selector",
             )
         return value
+
+    def _normalize_lua_expression(self, value: str) -> str:
+        """Normalize common safe model outputs to wf.vars-prefixed expressions.
+
+        Example: ``ZCDF_PACKAGES.items`` -> ``wf.vars.ZCDF_PACKAGES.items``
+        """
+        text = value.strip()
+        if self._LUA_EXPR_PATTERN.fullmatch(text):
+            return text
+        if self._BARE_PATH_PATTERN.fullmatch(text):
+            return f"wf.vars.{text}"
+        return text
+
+    def _normalize_condition_expression(self, value: str) -> str:
+        """Normalize common model output to protocollab-compatible syntax."""
+        text = value.strip()
+        # YAML list coercion artifacts: "not - expr" -> "not expr"
+        text = self._NOT_DASH_PATTERN.sub("not ", text)
+        # $item.attr -> item.attr
+        text = self._DOLLAR_NAME_PATTERN.sub(r"\1", text)
+        # @ -> item
+        text = self._AT_PLACEHOLDER_PATTERN.sub("item", text)
+        # C-style logical operators -> protocollab operators
+        text = text.replace("||", " or ").replace("&&", " and ")
+        # Lua not-equal operator -> expression parser form
+        text = text.replace("~=", "!=")
+        # Upper-case logical operators -> lower-case parser form
+        text = re.sub(r"\bOR\b", "or", text)
+        text = re.sub(r"\bAND\b", "and", text)
+        text = re.sub(r"\bNOT\b", "not", text)
+        # length(x) / len(x) -> (x).length
+        text = self._LENGTH_CALL_PATTERN.sub(r"(\1).length", text)
+        # isinstance(x, list) is not part of expression grammar; degrade to null-check.
+        text = self._ISINSTANCE_LIST_PATTERN.sub(r"(\1) != null", text)
+        return text
+
+    def _coerce_condition(self, params: dict[str, Any]) -> str:
+        value = params.get("condition")
+        if isinstance(value, str) and value.strip():
+            return value
+        if isinstance(value, list):
+            parts = [str(part).strip() for part in value if str(part).strip()]
+            if parts:
+                return " and ".join(parts)
+        raise NormalizedValidationError(
+            field="parameters.condition",
+            message="Missing or invalid required parameter: condition",
+            expected="non-empty string",
+            got=str(value),
+            hint="Provide condition as a single expression string.",
+            source="template_selector",
+        )
 
     @staticmethod
     def _require_number(params: dict[str, Any], key: str) -> float | int:
@@ -305,7 +387,8 @@ class LuaCodeGenerator:
         context: dict[str, Any] = {"operation": operation, "params": clean_params}
 
         if operation == "array_filter":
-            condition = self._require_string(clean_params, "condition")
+            condition = self._coerce_condition(clean_params)
+            condition = self._normalize_condition_expression(condition)
             try:
                 from app.expression.parser import parse_expr
             except Exception as exc:

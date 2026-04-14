@@ -1,9 +1,9 @@
-"""AST node definitions for the local expression language (extended from protocollab)."""
+"""AST node definitions for `protocollab` expression language."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, List as _List, Union
+from dataclasses import dataclass
+from typing import Any, Optional, Union
 
 # ---------------------------------------------------------------------------
 # Type alias for any AST node
@@ -13,12 +13,18 @@ ASTNode = Union[
     "Name",
     "Attribute",
     "Subscript",
-    "UnaryOp",
-    "BinOp",
-    "Ternary",
     "Call",
     "List",
     "Dict",
+    "ListLiteral",
+    "DictLiteral",
+    "InOp",
+    "Comprehension",
+    "Match",
+    "Wildcard",
+    "UnaryOp",
+    "BinOp",
+    "Ternary",
 ]
 
 
@@ -29,16 +35,58 @@ ASTNode = Union[
 
 @dataclass(frozen=True)
 class Literal:
-    """An integer, float, string, or boolean literal value."""
+    """An integer, string, or boolean literal value.
 
-    value: Any  # int | float | str | bool
+    Examples: ``42``, ``"hello"``, ``true``, ``false``, ``0xFF``.
+    """
+
+    value: Any  # int | str | bool
 
 
 @dataclass(frozen=True)
 class Name:
-    """A bare identifier that looks up a value in the evaluation context."""
+    """A bare identifier that looks up a value in the evaluation context.
+
+    Examples: ``length``, ``_io``, ``parent``.
+    """
 
     name: str
+
+
+@dataclass(frozen=True)
+class Wildcard:
+    """Wildcard pattern for match cases: ``_``."""
+
+
+@dataclass(frozen=True)
+class Call:
+    """Legacy function call node: ``func(arg1, arg2, ...)``.
+
+    Kept for backward compatibility with existing tests/transpiler helpers.
+    """
+
+    func: ASTNode
+    args: tuple[ASTNode, ...]
+
+
+@dataclass(frozen=True)
+class List:
+    """Legacy list literal node.
+
+    Kept for backward compatibility with existing tests/transpiler helpers.
+    """
+
+    elements: tuple[ASTNode, ...]
+
+
+@dataclass(frozen=True)
+class Dict:
+    """Legacy dict literal node represented as key/value pairs.
+
+    Kept for backward compatibility with existing tests/transpiler helpers.
+    """
+
+    pairs: tuple[tuple[ASTNode, ASTNode], ...]
 
 
 # ---------------------------------------------------------------------------
@@ -48,7 +96,15 @@ class Name:
 
 @dataclass(frozen=True)
 class Attribute:
-    """Dotted attribute access: ``parent.field_name``."""
+    """Dotted attribute access: ``parent.field_name``.
+
+    Attributes
+    ----------
+    obj:
+        The object expression (typically a :class:`Name`).
+    attr:
+        The attribute name string.
+    """
 
     obj: ASTNode
     attr: str
@@ -56,23 +112,107 @@ class Attribute:
 
 @dataclass(frozen=True)
 class Subscript:
-    """Indexing: ``arr[0]``, ``arr[-1]``."""
+    """Indexing: ``arr[0]``, ``arr[-1]``.
+
+    Attributes
+    ----------
+    obj:
+        The sequence expression.
+    index:
+        The index expression.
+    """
 
     obj: ASTNode
     index: ASTNode
 
 
 @dataclass(frozen=True)
-class UnaryOp:
-    """Unary prefix operator: ``-x``, ``not flag``, ``#arr``."""
+class ListLiteral:
+    """List literal expression: ``[1, 2, x]``."""
 
-    op: str  # "-" | "not" | "#"
+    elements: list[ASTNode]
+
+
+@dataclass(frozen=True)
+class DictLiteral:
+    """Dict literal expression: ``{"key": value}``."""
+
+    keys: list[ASTNode]
+    values: list[ASTNode]
+
+
+@dataclass(frozen=True)
+class InOp:
+    """Membership expression: ``left in right``."""
+
+    left: ASTNode
+    right: ASTNode
+
+
+@dataclass(frozen=True)
+class Comprehension:
+    """Comprehension-style call.
+
+    Example: ``any(x > 0 for x in values if x != 3)``.
+    """
+
+    kind: str
+    expr: ASTNode
+    var: Name
+    iterable: ASTNode
+    condition: Optional[ASTNode]
+
+
+@dataclass(frozen=True)
+class MatchCase:
+    """Single match case: ``pattern -> body``."""
+
+    pattern: ASTNode
+    body: ASTNode
+
+
+@dataclass(frozen=True)
+class Match:
+    """Match expression.
+
+    Example: ``match x with 1 -> "a" | else -> "b"``.
+    """
+
+    subject: ASTNode
+    cases: list[MatchCase]
+    else_case: Optional[ASTNode]
+
+
+@dataclass(frozen=True)
+class UnaryOp:
+    """Unary prefix operator: ``-x``, ``not flag``.
+
+    Attributes
+    ----------
+    op:
+        Operator string: ``"-"`` or ``"not"``.
+    operand:
+        The operand expression.
+    """
+
+    op: str  # "-" | "not"
     operand: ASTNode
 
 
 @dataclass(frozen=True)
 class BinOp:
-    """Binary infix operator."""
+    """Binary infix operator.
+
+    Attributes
+    ----------
+    left, right:
+        Operand expressions.
+    op:
+        Operator string: ``"+"``, ``"-"``, ``"*"``, ``"/"``, ``"//"``,
+        ``"%"``, ``"<<"``, ``">>"``, ``"&"``, ``"^"``, ``"|"``,
+        ``"=="``, ``"!="``, ``"<"``, ``">"``, ``"<="``, ``">="``,
+        ``"and"``, ``"or"``.
+    """
 
     left: ASTNode
     op: str
@@ -81,33 +221,13 @@ class BinOp:
 
 @dataclass(frozen=True)
 class Ternary:
-    """Python-style ternary: ``value_if_true if condition else value_if_false``."""
+    """Python-style ternary: ``value_if_true if condition else value_if_false``.
 
-    value_if_true: ASTNode
-    condition: ASTNode
-    value_if_false: ASTNode
+    In Kaitai-like specs this appears as::
 
-
-@dataclass(frozen=True)
-class Call:
-    """Function call: ``func(arg1, arg2, ...)``."""
-
-    func: ASTNode
-    args: tuple
-
-
-@dataclass(frozen=True)
-class List:
-    """List / array literal: ``[a, b, c]``."""
-
-    elements: tuple
-
-
-@dataclass(frozen=True)
-class Dict:
-    """Dictionary / table literal: ``{key: value, ...}``.
-
-    Each item in *pairs* is a 2-tuple ``(key_node, value_node)``.
+        size: total_length - 8 if has_ext else fixed_size
     """
 
-    pairs: tuple
+    condition: ASTNode
+    value_if_true: ASTNode
+    value_if_false: ASTNode
