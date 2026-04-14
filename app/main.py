@@ -119,6 +119,16 @@ async def _run_single_attempt(session: SessionState, prompt: str) -> GenerateRes
 
     try:
         parsed = pipeline.parse_and_validate(raw)
+        operation = str(parsed.get("operation", ""))
+        params_obj = parsed.get("parameters", {})
+        params = params_obj if isinstance(params_obj, dict) else {}
+        template_path = template_selector.select_template(operation)
+        generated_lua = lua_codegen.generate_code(
+            operation=operation,
+            params=params,
+            template_path=template_path,
+        )
+
         session.attempts = attempt_number
         session.yaml = parsed
         session.history.append(AttemptHistoryItem(attempt=attempt_number, prompt=prompt, yaml=parsed))
@@ -131,6 +141,7 @@ async def _run_single_attempt(session: SessionState, prompt: str) -> GenerateRes
         return GenerateResponse(
             session_id=session.session_id,
             yaml=parsed,
+            lua_code=generated_lua,
             attempts=session.attempts,
             is_complete=True,
             feedback=[],

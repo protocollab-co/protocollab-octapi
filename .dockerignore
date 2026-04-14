@@ -54,3 +54,6 @@ Dockerfile
 !prompts/*.md
 .env.local
 *.log
+
+# Local Ollama cache (large, runtime-mounted)
+models/

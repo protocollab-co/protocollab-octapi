@@ -5,7 +5,7 @@ FROM python:3.12-slim as builder
 WORKDIR /build
 
 # Install system dependencies for protocollab (includes psutil for any optional features)
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get -o Acquire::ForceIPv4=true update && apt-get install -y --no-install-recommends \
     git \
     && rm -rf /var/lib/apt/lists/*
 
@@ -24,7 +24,7 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # Install runtime dependencies: git for submodule, docker CLI for sandbox execution
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get -o Acquire::ForceIPv4=true update && apt-get install -y --no-install-recommends \
     git \
     docker.io \
     curl \

@@ -78,6 +78,25 @@
     button.secondary:hover {
       background: #555;
     }
+
+    .copy-btn {
+      background: #0b8043;
+      margin-top: 6px;
+      margin-right: 0;
+      width: 34px;
+      height: 34px;
+      padding: 0;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    .copy-btn:hover {
+      background: #086536;
+    }
     
     .grid-2 {
       display: grid;
@@ -224,13 +243,13 @@
     </div>
 
     <!-- MAIN WORKFLOW SECTION -->
-    <div class="section">
+    <div class="section" id="generateSection">
       <h2>📝 1. Генерация YAML</h2>
       <div class="form-group">
         <label for="prompt">Задача</label>
         <textarea id="prompt" placeholder="Пример: Из полученного списка email получи последний"></textarea>
       </div>
-      <button id="btnGenerate" onclick="generateYAML()">Сгенерировать</button>
+      <button id="btnGenerate" onclick="generateYAML()">Сгенерировать и выполнить</button>
       <div id="generateStatus" class="hidden status"></div>
     </div>
 
@@ -481,6 +500,44 @@
       if (text) elem.classList.remove('hidden');
     }
 
+    async function copyAllFromField(fieldId) {
+      const field = document.getElementById(fieldId);
+      if (!field) return;
+
+      const text = field.value || '';
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          field.focus();
+          field.select();
+          document.execCommand('copy');
+        }
+      } catch (e) {
+        console.warn('Copy failed:', e);
+      }
+    }
+
+    function attachCopyButtons() {
+      const fields = document.querySelectorAll('textarea, input[type="text"], input:not([type])');
+      fields.forEach((field) => {
+        if (!field.id || field.dataset.copyBound === '1') return;
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'copy-btn';
+        btn.textContent = '📋';
+        btn.title = 'Копировать все';
+        btn.setAttribute('aria-label', 'Копировать все');
+        btn.addEventListener('click', () => {
+          copyAllFromField(field.id);
+        });
+
+        field.insertAdjacentElement('afterend', btn);
+        field.dataset.copyBound = '1';
+      });
+    }
+
     function updateHistory() {
       const table = document.getElementById('historyTable');
       const tbody = document.getElementById('historyTableBody');
@@ -624,8 +681,21 @@
           document.getElementById('operationText').textContent = `Операция: ${currentYaml.operation || '?'}`;
           const contextStr = document.getElementById('contextJson').value.trim();
           saveToHistory(prompt, currentYaml.operation, contextStr);
+
+          // Display generated Lua code preview
+          if (data.lua_code) {
+            const luaCode = document.querySelector('#luaOutput code');
+            luaCode.textContent = data.lua_code;
+            luaCode.className = 'language-lua';
+          }
+
+          // Full pipeline from one click: generate -> execute
+          await executeLua(true);
         } else {
           showStatus('generateStatus', `❌ Валидация не прошла (попытка ${data.attempts})`, 'error');
+          const luaCode = document.querySelector('#luaOutput code');
+          luaCode.textContent = '';
+          luaCode.className = 'language-lua';
           if (data.feedback && data.feedback.length > 0) {
             lastFeedback = data.feedback;
             const fb = data.feedback[0];
@@ -699,6 +769,12 @@
           const yamlCode = document.querySelector('#yamlOutput code');
           yamlCode.textContent = yamlStr;
           yamlCode.className = 'language-yaml';
+
+          if (data.lua_code) {
+            const luaCode = document.querySelector('#luaOutput code');
+            luaCode.textContent = data.lua_code;
+            luaCode.className = 'language-lua';
+          }
           hljs.highlightAll();
         } else {
           showStatus('askStatus', `❌ Всё ещё ошибка (попытка ${data.attempts})`, 'error');
@@ -720,9 +796,11 @@
     }
 
     // ==================== EXECUTE ====================
-    async function executeLua() {
+    async function executeLua(autoTriggered = false) {
       if (!currentYaml) {
-        showStatus('executeStatus', 'Нет YAML для выполнения', 'error');
+        if (!autoTriggered) {
+          showStatus('executeStatus', 'Нет YAML для выполнения', 'error');
+        }
         return;
       }
 
@@ -784,6 +862,12 @@
 
     // ==================== INITIALIZATION ====================
     document.addEventListener('DOMContentLoaded', () => {
+      const generateSection = document.getElementById('generateSection');
+      const executeSection = document.getElementById('executeSection');
+      if (generateSection && executeSection && generateSection.parentNode) {
+        generateSection.parentNode.insertBefore(executeSection, generateSection.nextSibling);
+      }
+      attachCopyButtons();
       loadFromStorage();
     });
   </script>

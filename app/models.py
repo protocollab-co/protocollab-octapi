@@ -42,6 +42,7 @@ class FeedbackItem(BaseModel):
 class GenerateResponse(BaseModel):
     session_id: str
     yaml: dict[str, Any] | None = None
+    lua_code: str | None = None
     attempts: int = 1
     is_complete: bool = False
     feedback: list[FeedbackItem] = Field(default_factory=list)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import subprocess
 import uuid
 from pathlib import Path
@@ -28,6 +29,7 @@ class LuaCodeValidator:
             with NamedTemporaryFile("w", delete=False, suffix=".lua", encoding="utf-8") as handle:
                 handle.write(lua_code)
                 tmp_file = handle.name
+            os.chmod(tmp_file, 0o644)
 
             command = [
                 "docker",

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+import os
 import subprocess
 import uuid
 from pathlib import Path
@@ -78,6 +79,7 @@ class DockerSandboxExecutor:
             with NamedTemporaryFile("w", delete=False, suffix=".lua", encoding="utf-8") as handle:
                 handle.write(script)
                 tmp_file = handle.name
+            os.chmod(tmp_file, 0o644)
 
             command = [
                 "docker",

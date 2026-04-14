@@ -1,0 +1,53 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.4, pytest-9.0.3, pluggy-1.6.0 -- /home/dm/miniconda3/bin/python
+cachedir: .pytest_cache
+rootdir: /home/dm/protocollab-octapi
+configfile: pytest.ini
+plugins: anyio-4.13.0
+collecting ... collected 43 items
+
+tests/test_all_samples.py::test_sample_generate_and_execute[array_last] SKIPPED [  2%]
+tests/test_all_samples.py::test_sample_generate_and_execute[math_increment] SKIPPED [  4%]
+tests/test_all_samples.py::test_sample_generate_and_execute[object_clean] SKIPPED [  6%]
+tests/test_all_samples.py::test_sample_generate_and_execute[datetime_iso] SKIPPED [  9%]
+tests/test_all_samples.py::test_sample_generate_and_execute[ensure_array_field] SKIPPED [ 11%]
+tests/test_all_samples.py::test_sample_generate_and_execute[array_filter] SKIPPED [ 13%]
+tests/test_all_samples.py::test_sample_generate_and_execute[custom_square] SKIPPED [ 16%]
+tests/test_all_samples.py::test_sample_generate_and_execute[datetime_unix] SKIPPED [ 18%]
+tests/test_day1_generate.py::test_health_endpoint_returns_ok_when_ollama_available PASSED [ 20%]
+tests/test_day1_generate.py::test_generate_success PASSED                [ 23%]
+tests/test_day1_generate.py::test_generate_schema_error PASSED           [ 25%]
+tests/test_day1_generate.py::test_generate_expression_error PASSED       [ 27%]
+tests/test_day2_generate.py::test_ask_completes_after_clarification PASSED [ 30%]
+tests/test_day2_generate.py::test_ask_returns_controlled_error_when_attempts_exhausted PASSED [ 32%]
+tests/test_day2_generate.py::test_ask_fixes_expression_error_within_three_attempts PASSED [ 34%]
+tests/test_day3_execute.py::test_template_selector_unknown_operation PASSED [ 37%]
+tests/test_day3_execute.py::test_to_lua_binop_not_equal_mapping PASSED   [ 39%]
+tests/test_day3_execute.py::test_to_lua_escapes_control_chars_in_string_literal PASSED [ 41%]
+tests/test_day3_execute.py::test_to_lua_allows_safe_call_tonumber PASSED [ 44%]
+tests/test_day3_execute.py::test_to_lua_supports_nested_list_dict_tables PASSED [ 46%]
+tests/test_day3_execute.py::test_to_lua_rejects_unsupported_dict_key_in_strict_mode PASSED [ 48%]
+tests/test_day3_execute.py::test_execute_with_inline_yaml_success PASSED [ 51%]
+tests/test_day3_execute.py::test_execute_unknown_operation_returns_controlled_error PASSED [ 53%]
+tests/test_day3_execute.py::test_execute_rejects_session_id_and_yaml_together PASSED [ 55%]
+tests/test_day3_execute.py::test_execute_rejects_unsafe_lua_expression PASSED [ 58%]
+tests/test_day3_execute.py::test_execute_luac_error_mapped PASSED        [ 60%]
+tests/test_day3_execute.py::test_all_day3_templates_exist PASSED         [ 62%]
+tests/test_day4_runtime_contract.py::TestLuaStringEscaping::test_to_lua_escapes_control_chars PASSED [ 65%]
+tests/test_day4_runtime_contract.py::TestLuaStringEscaping::test_lua_escape_function_direct PASSED [ 67%]
+tests/test_day4_runtime_contract.py::TestExecuteInputGuards::test_session_id_and_yaml_mutual_exclusive PASSED [ 69%]
+tests/test_day4_runtime_contract.py::TestExecuteInputGuards::test_yaml_required_when_no_session_id PASSED [ 72%]
+tests/test_day4_runtime_contract.py::TestUnsafeExpressionRejection::test_sanitize_params_rejects_unsafe_expressions PASSED [ 74%]
+tests/test_day4_runtime_contract.py::TestUnsafeExpressionRejection::test_sanitize_params_validates_field_names PASSED [ 76%]
+tests/test_e2e_scenarios.py::TestE2EHappyPath::test_array_last_inline_success SKIPPED [ 79%]
+tests/test_e2e_scenarios.py::TestE2EErrorAndFix::test_invalid_operation_fix_via_ask SKIPPED [ 81%]
+tests/test_e2e_scenarios.py::TestE2EContextInjection::test_execute_with_custom_context SKIPPED [ 83%]
+tests/test_e2e_scenarios.py::TestE2EConditionError::test_array_filter_condition_error SKIPPED [ 86%]
+tests/test_e2e_scenarios.py::TestE2EMathIncrement::test_math_increment_execution SKIPPED [ 88%]
+tests/test_e2e_scenarios.py::TestE2EHealthCheck::test_health_returns_docker_available SKIPPED [ 90%]
+tests/test_e2e_scenarios.py::TestE2EMutualExclusivity::test_execute_requires_either_session_or_yaml SKIPPED [ 93%]
+tests/test_e2e_scenarios.py::TestSmokeChecklist::test_all_endpoints_exist SKIPPED [ 95%]
+tests/test_e2e_scenarios.py::TestSmokeChecklist::test_response_schemas_valid SKIPPED [ 97%]
+tests/test_e2e_scenarios.py::TestSmokeChecklist::test_error_format_consistent SKIPPED [100%]
+
+======================== 25 passed, 18 skipped in 0.53s ========================

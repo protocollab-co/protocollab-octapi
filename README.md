@@ -45,9 +45,9 @@ docker-compose up --build
 
 Это поднимет:
 - 🦙 **Ollama** (localhost:11434) с моделью neural-chat
-- 🌐 **LocalScript API** (localhost:8000) с Web UI (/)
+- 🌐 **LocalScript API** (localhost:8888) с Web UI (/)
 
-После старта откройте http://localhost:8000 в браузере.
+После старта откройте http://localhost:8888 в браузере.
 
 **Для первого запуска (загрузка модели):**
 ```bash
