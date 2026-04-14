@@ -214,7 +214,7 @@
     .demo-nav-buttons {
       display: flex;
       gap: 8px;
-      justify-content: flex-end;
+      justify-content: flex-start;
       align-items: center;
       height: 100%;
       flex-wrap: wrap;
@@ -224,6 +224,16 @@
       min-width: 48px;
       margin-top: 0;
       margin-right: 0;
+    }
+
+    .scenario-meta {
+      margin-top: 6px;
+      font-size: 12px;
+      color: #374151;
+      background: #eef3fb;
+      border: 1px solid #d5e1f2;
+      border-radius: 4px;
+      padding: 6px 8px;
     }
     
     .history-section {
@@ -267,7 +277,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>🚀 LocalScript YAML Demo - Enhanced UI</h1>
+    <h1 id="appTitle">🚀 LocalScript YAML Demo - Enhanced UI</h1>
     <p>Дни 1-4: Генерация YAML, уточнение и Lua выполнение с примерами от организаторов.</p>
 
     <!-- EXAMPLES SECTION -->
@@ -283,8 +293,10 @@
             <label style="width: 100%; margin-bottom: 0;">Выберите пример (20 демо-сценариев):</label>
             <button id="btnPrevExample" class="secondary" onclick="navigateScenario(-1)">◀</button>
             <button id="btnNextExample" class="secondary" onclick="navigateScenario(1)">▶</button>
+            <button id="btnRunCustom" onclick="runCustomScenario()" style="width: 100%;">Запустить наш пример</button>
           </div>
         </div>
+        <div id="scenarioMeta" class="scenario-meta">Сценарий не выбран</div>
         <button id="btnLoadExample" onclick="loadExample()">Загрузить пример</button>
         <button id="btnClearAll" class="secondary" onclick="clearAll()">Очистить</button>
       </div>
@@ -499,7 +511,7 @@
       },
       ensure_array: {
         title: "Ensure Array - Type checking",
-        prompt: "Преобразуй структуру так, чтобы все `items` в `ZCDF_PACKAGES` всегда были массивами.",
+        prompt: "Операция ensure_array_field: source=wf.vars.json.IDOC.ZCDF_HEAD.ZCDF_PACKAGES, field=items. Преобразуй структуру так, чтобы все items в ZCDF_PACKAGES всегда были массивами.",
         context: {
           "wf": {
             "vars": {
@@ -512,6 +524,22 @@
                     ]
                   }
                 }
+              },
+              "packages": [
+                {"items": [{"sku": "A"}, {"sku": "B"}]},
+                {"items": {"sku": "C"}}
+              ],
+              "ZCDF_PACKAGES": [
+                {"items": [{"sku": "A"}, {"sku": "B"}]},
+                {"items": {"sku": "C"}}
+              ],
+              "wf": {
+                "payload": {
+                  "items": [
+                    {"items": [{"sku": "A"}, {"sku": "B"}]},
+                    {"items": {"sku": "C"}}
+                  ]
+                }
               }
             }
           }
@@ -520,13 +548,29 @@
       square_number: {
         title: "Square Number - Arithmetic",
         prompt: "Добавь переменную с квадратом числа.",
-        context: {}
+        context: {
+          "wf": {
+            "vars": {
+              "square_number": 5,
+              "num": 5,
+              "last_user_question": 5
+            }
+          }
+        }
       },
       unix_time: {
         title: "Unix Time - Complex conversion",
-        prompt: "Конвертируй время в переменной `recallTime` в unix-формат.",
+        prompt: "Операция datetime_unix: source=wf.initVariables.recallTime. Конвертируй время в переменной recallTime в unix-формат.",
         context: {
           "wf": {
+            "vars": {
+              "recallTime": "2023-10-15T15:30:00+00:00",
+              "runtime": {
+                "context": {
+                  "recallTime": "2023-10-15T15:30:00+00:00"
+                }
+              }
+            },
             "initVariables": {
               "recallTime": "2023-10-15T15:30:00+00:00"
             }
@@ -551,101 +595,121 @@
         title: "01. Last email (valid)",
         prompt: "Получи последний email из wf.vars.emails",
         context: { wf: { vars: { emails: ["a@mail.com", "b@mail.com", "c@mail.com"] } } },
+        expected: "valid",
       },
       {
         title: "02. Increment counter (valid)",
         prompt: "Увеличь wf.vars.counter на 2",
         context: { wf: { vars: { counter: 10 } } },
+        expected: "valid",
       },
       {
         title: "03. Filter with Discount (valid)",
         prompt: "Оставь записи, где Discount не пустой",
         context: { wf: { vars: { parsedCsv: [{ Discount: "5%" }, { Discount: "" }] } } },
+        expected: "valid",
       },
       {
         title: "04. Datetime ISO from DATUM/TIME (valid)",
         prompt: "Собери ISO из DATUM и TIME",
         context: { wf: { vars: { json: { IDOC: { ZCDF_HEAD: { DATUM: "20240101", TIME: "121314" } } } } } },
+        expected: "valid",
       },
       {
         title: "05. Ensure array items (valid)",
         prompt: "Сделай items в packages массивом",
         context: { wf: { vars: { json: { IDOC: { ZCDF_HEAD: { ZCDF_PACKAGES: [{ items: { sku: "A" } }] } } } } } },
+        expected: "valid",
       },
       {
         title: "06. Object clean fields (valid)",
         prompt: "Очисти поля ID и CALL",
         context: { wf: { vars: { RESTbody: { result: [{ ID: 1, CALL: "x", A: 10 }] } } } },
+        expected: "valid",
       },
       {
         title: "07. Unix from recallTime (valid)",
         prompt: "Конвертируй recallTime в unix",
         context: { wf: { initVariables: { recallTime: "2023-10-15T15:30:00+00:00" } } },
+        expected: "valid",
       },
       {
         title: "08. Missing source demo (error)",
         prompt: "Сделай фильтрацию без контекста",
         context: {},
+        expected: "error",
       },
       {
         title: "09. Wrong date field demo (error)",
         prompt: "Собери ISO из одной переменной timestamp",
         context: { wf: { vars: { timestamp: "20231015153000" } } },
+        expected: "error",
       },
       {
         title: "10. Empty arrays demo (edge)",
         prompt: "Возьми последний элемент пустого массива",
         context: { wf: { vars: { emails: [] } } },
+        expected: "error",
       },
       {
         title: "11. Mixed Discount/Markdown (valid)",
         prompt: "Оставь элементы по Discount или Markdown",
         context: { wf: { vars: { parsedCsv: [{ Discount: "", Markdown: "1%" }, { Discount: "", Markdown: "" }] } } },
+        expected: "valid",
       },
       {
         title: "12. Counter as string (error/auto-fix)",
         prompt: "Инкрементируй строковый counter",
         context: { wf: { vars: { counter: "10" } } },
+        expected: "error",
       },
       {
         title: "13. Missing wf block (error)",
         prompt: "Возьми последний item",
         context: { data: [1, 2, 3] },
+        expected: "error",
       },
       {
         title: "14. Big object clean (valid)",
         prompt: "Удалить ID, ENTITY_ID, CALL из result",
         context: { wf: { vars: { RESTbody: { result: [{ ID: 100, ENTITY_ID: 200, CALL: "c1", keep: true }] } } } },
+        expected: "valid",
       },
       {
         title: "15. Bad datetime format (error)",
         prompt: "Собери ISO, но время некорректно",
         context: { wf: { vars: { json: { IDOC: { ZCDF_HEAD: { DATUM: "2024", TIME: "99" } } } } } },
+        expected: "error",
       },
       {
         title: "16. Ensure nested items (valid)",
         prompt: "Нормализуй nested items",
         context: { wf: { vars: { json: { IDOC: { ZCDF_HEAD: { ZCDF_PACKAGES: [{ items: [{ sku: "A" }] }, { items: { sku: "B" } }] } } } } } },
+        expected: "valid",
       },
       {
         title: "17. Filter with nulls (valid)",
         prompt: "Оставь элементы, где Discount не null",
         context: { wf: { vars: { parsedCsv: [{ Discount: null }, { Discount: "7%" }] } } },
+        expected: "valid",
       },
       {
         title: "18. Missing parsedCsv (error)",
         prompt: "Фильтруй parsedCsv",
         context: { wf: { vars: {} } },
+        expected: "error",
       },
       {
         title: "19. Unix with timezone +03 (valid)",
         prompt: "Переведи recallTime в unix",
         context: { wf: { initVariables: { recallTime: "2023-10-15T18:30:00+03:00" } } },
+        expected: "valid",
       },
       {
         title: "20. Minimal prompt ambiguity (error/ask)",
         prompt: "Сделай что-то с массивом",
         context: { wf: { vars: { items: [1, 2, 3] } } },
+        expected: "error",
       },
     ];
 
@@ -900,6 +964,15 @@
         select.appendChild(option);
       });
       select.value = '';
+      renderScenarioMeta("org", "Выберите орг-сценарий или листайте наши через ◀/▶", "mixed");
+    }
+
+    function renderScenarioMeta(kind, title, expected) {
+      const el = document.getElementById('scenarioMeta');
+      if (!el) return;
+      const expectedLabel = expected === 'valid' ? 'ожидается успех' : expected === 'error' ? 'ожидается ошибка' : 'смешанный';
+      const kindLabel = kind === 'org' ? 'Орг' : 'Наш';
+      el.textContent = `${kindLabel}: ${title} | ${expectedLabel}`;
     }
 
     function applyCustomScenario(index) {
@@ -921,10 +994,31 @@
       const select = document.getElementById('exampleSelect');
       if (select) select.value = '';
       showStatus('generateStatus', label, 'loading');
+      renderScenarioMeta('custom', scenario.title, scenario.expected || 'mixed');
     }
 
     function navigateScenario(delta) {
       applyCustomScenario(customScenarioIndex + delta);
+    }
+
+    function runCustomScenario() {
+      // Runs currently selected custom scenario from left/right navigation.
+      generateYAML(true);
+    }
+
+    async function populateModelTitle() {
+      const title = document.getElementById('appTitle');
+      if (!title) return;
+      try {
+        const resp = await fetch('/health');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (data && data.model) {
+          title.textContent = `🚀 LocalScript YAML Demo - Enhanced UI (${data.model})`;
+        }
+      } catch (_e) {
+        // Keep default title if health endpoint is unavailable.
+      }
     }
 
     function restoreHistory(index) {
@@ -955,6 +1049,7 @@
       const example = DEMO_EXAMPLES[key];
       document.getElementById('prompt').value = example.prompt;
       document.getElementById('contextJson').value = JSON.stringify(example.context, null, 2);
+      renderScenarioMeta('org', example.title, 'valid');
       
       // Auto-generate with autocorrection for demo flow
       generateYAML(true);
@@ -1279,6 +1374,7 @@
     document.addEventListener('DOMContentLoaded', () => {
       populateOrganizerExamples();
       applyCustomScenario(0);
+      populateModelTitle();
       attachCopyButtons();
       loadFromStorage();
     });
