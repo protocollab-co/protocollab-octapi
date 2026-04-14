@@ -353,6 +353,31 @@ Endpoint выполнения валидного YAML в Lua.
 pytest -q
 ```
 
+### WSL-режим (рекомендуется для стабильного локального прогона)
+
+Быстрый запуск (без integration):
+
+```bash
+wsl sh -lc "cd /mnt/d/Work/protocollab-octapi && bash scripts/wsl_test.sh quick"
+```
+
+Полный запуск:
+
+```bash
+wsl sh -lc "cd /mnt/d/Work/protocollab-octapi && bash scripts/wsl_test.sh full"
+```
+
+Только integration-сценарии (8 sample requests):
+
+```bash
+wsl sh -lc "cd /mnt/d/Work/protocollab-octapi && bash scripts/wsl_test.sh integration"
+```
+
+Скрипт автоматически:
+- создаёт/использует `.venv_wsl`
+- ставит зависимости из `requirements.txt`
+- запускает выбранный профиль тестов
+
 Запуск только Day1-Day4 тестов:
 
 ```bash
