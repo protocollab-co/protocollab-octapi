@@ -349,6 +349,8 @@ Endpoint выполнения валидного YAML в Lua.
 
 ## Тесты
 
+Подробный запуск на Ubuntu/WSL: [docs/ubuntu_runbook.md](docs/ubuntu_runbook.md)
+
 ```bash
 pytest -q
 ```

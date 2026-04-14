@@ -2,6 +2,10 @@
 
 Документация проекта организована по категориям для удобства навигации.
 
+## 🔧 Запуск на Ubuntu
+
+- **ubuntu_runbook.md** — Пошаговый runbook для Ubuntu (Docker и без Docker, smoke-тесты, troubleshooting)
+
 ## 📋 Структура папок
 
 ### `boost/` — UI/UX Улучшения ✨
@@ -57,8 +61,9 @@
 **Для разработчиков:**
 1. `planning/plan_protocollab_octapi.md` — общее описание
 2. `days/day5.md` — текущий прогресс
-3. `verification/reference_scenario.md` — как протестировать
-4. `diagrams/` — архитектуру и взаимодействие компонентов
+3. `ubuntu_runbook.md` — запуск и тестирование на Ubuntu/WSL
+4. `verification/reference_scenario.md` — как протестировать
+5. `diagrams/` — архитектуру и взаимодействие компонентов
 
 **Для архитекторов:**
 1. `diagrams/day5_architecture.mmd`
