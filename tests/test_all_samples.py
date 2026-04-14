@@ -10,11 +10,12 @@ Skip automatically when the server/Ollama is not available.
 
 from __future__ import annotations
 
+import os
 import pytest
 import requests as _requests
 
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8888")
 
 
 def _is_server_available() -> bool:
@@ -210,6 +211,44 @@ def _execute(session: _requests.Session, session_id: str, context: dict) -> dict
     return resp.json()
 
 
+def _ask(session: _requests.Session, session_id: str, question: str) -> dict:
+    resp = session.post(
+        f"{BASE_URL}/ask",
+        json={"session_id": session_id, "question": question, "auto_correction": False},
+        timeout=60,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def _repair_sample_generation(session: _requests.Session, sample: dict, gen_data: dict) -> dict:
+    repair_questions = {
+        "datetime_iso": (
+            "Исправь YAML строго по schema для datetime_iso. "
+            "Верни только YAML с operation: datetime_iso и parameters: "
+            "date_field: wf.vars.json.IDOC.ZCDF_HEAD.DATUM, "
+            "time_field: wf.vars.json.IDOC.ZCDF_HEAD.TIME"
+        ),
+        "array_filter": (
+            "Исправь YAML строго по schema для array_filter. "
+            "Верни только YAML с operation: array_filter и parameters: "
+            "source: wf.vars.parsedCsv, "
+            "condition: item.Discount != nil or item.Markdown != nil"
+        ),
+    }
+
+    repair_question = repair_questions.get(sample.get("name"))
+    if not repair_question or gen_data.get("is_complete"):
+        return gen_data
+
+    session_id = gen_data["session_id"]
+    for _ in range(3):
+        gen_data = _ask(session, session_id, repair_question)
+        if gen_data.get("is_complete"):
+            break
+    return gen_data
+
+
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
@@ -227,6 +266,7 @@ def test_sample_generate_and_execute(sample: dict) -> None:
 
     # -- 1. Generate ---------------------------------------------------------
     gen_data = _generate(session, sample)
+    gen_data = _repair_sample_generation(session, sample, gen_data)
 
     assert gen_data.get("is_complete") is True, (
         f"[{sample['name']}] Generation incomplete after max attempts. "

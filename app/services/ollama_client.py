@@ -12,7 +12,7 @@ class OllamaClient:
 
     async def health(self) -> bool:
         timeout = httpx.Timeout(self.timeout_seconds)
-        async with httpx.AsyncClient(timeout=timeout) as client:
+        async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
             response = await client.get(f"{self.base_url}/api/tags")
             response.raise_for_status()
             payload = response.json()
@@ -32,7 +32,7 @@ class OllamaClient:
                 "parallel": 1,
             },
         }
-        async with httpx.AsyncClient(timeout=timeout) as client:
+        async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
             response = await client.post(f"{self.base_url}/api/generate", json=payload)
             response.raise_for_status()
             data = response.json()

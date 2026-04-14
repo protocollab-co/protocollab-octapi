@@ -96,6 +96,25 @@ def _build_follow_up_prompt(session: SessionState, question: str | None) -> str:
     return prompt
 
 
+def _build_diagnostic_lua(raw_output: str, feedback: FeedbackItem) -> str:
+    lines = [
+        "-- Diagnostic Lua fallback",
+        "-- YAML validation/codegen did not complete successfully.",
+        f"-- field: {feedback.field}",
+        f"-- source: {feedback.source}",
+        f"-- message: {feedback.message}",
+        f"-- expected: {feedback.expected}",
+        f"-- got: {feedback.got}",
+    ]
+    if feedback.hint:
+        lines.append(f"-- hint: {feedback.hint}")
+    lines.append("-- raw_model_output:")
+    for line in raw_output.splitlines()[:60]:
+        lines.append(f"-- {line}")
+    lines.append("return nil")
+    return "\n".join(lines) + "\n"
+
+
 async def _run_single_attempt(session: SessionState, prompt: str) -> GenerateResponse:
     attempt_number = session.attempts + 1
     logger.info(
@@ -142,12 +161,14 @@ async def _run_single_attempt(session: SessionState, prompt: str) -> GenerateRes
             session_id=session.session_id,
             yaml=parsed,
             lua_code=generated_lua,
+            raw_model_output=raw,
             attempts=session.attempts,
             is_complete=True,
             feedback=[],
         )
     except NormalizedValidationError as exc:
         feedback = _to_feedback_item(exc)
+        generated_lua = _build_diagnostic_lua(raw_output=raw, feedback=feedback)
         session.attempts = attempt_number
         session.yaml = None
         session.history.append(
@@ -170,6 +191,8 @@ async def _run_single_attempt(session: SessionState, prompt: str) -> GenerateRes
         return GenerateResponse(
             session_id=session.session_id,
             yaml=None,
+            lua_code=generated_lua,
+            raw_model_output=raw,
             attempts=session.attempts,
             is_complete=False,
             feedback=[feedback],
@@ -327,7 +350,8 @@ async def ask(payload: AskRequest) -> GenerateResponse:
                 session=session,
             )
 
-        session_store.assert_not_exhausted(session)
+        if payload.auto_correction:
+            session_store.assert_not_exhausted(session)
 
         if session.context is None:
             session.context = {}
@@ -335,7 +359,7 @@ async def ask(payload: AskRequest) -> GenerateResponse:
 
         prompt = _build_follow_up_prompt(session=session, question=payload.question)
         result = await _run_single_attempt(session=session, prompt=prompt)
-        if not result.is_complete and session.attempts >= session.max_attempts:
+        if payload.auto_correction and not result.is_complete and session.attempts >= session.max_attempts:
             _raise_controlled_session_error(
                 status_code=409,
                 code="attempt_limit_reached",

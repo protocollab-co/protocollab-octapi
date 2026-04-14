@@ -12,33 +12,34 @@
     body {
       font-family: Segoe UI, -apple-system, sans-serif;
       margin: 0;
-      padding: 20px;
+      padding: 10px;
       background: #f5f7fa;
       color: #333;
     }
     .container { max-width: 1400px; margin: 0 auto; }
-    h1 { color: #1a73e8; margin-top: 0; }
-    h2 { color: #4285f4; border-bottom: 2px solid #e8f0fe; padding-bottom: 8px; margin-top: 24px; }
-    h3 { color: #555; margin-top: 16px; }
+    h1 { color: #1a73e8; margin-top: 0; margin-bottom: 6px; font-size: 21px; }
+    h2 { color: #4285f4; border-bottom: 2px solid #e8f0fe; padding-bottom: 4px; margin-top: 8px; margin-bottom: 8px; font-size: 16px; }
+    h3 { color: #555; margin-top: 6px; margin-bottom: 6px; font-size: 14px; }
     
     .section {
       background: white;
       border: 1px solid #ddd;
       border-radius: 4px;
-      padding: 20px;
-      margin-bottom: 20px;
+      padding: 10px;
+      margin-bottom: 8px;
       box-shadow: 0 1px 3px rgba(0,0,0,0.08);
     }
     
     .form-group {
-      margin-bottom: 12px;
+      margin-bottom: 6px;
     }
     
     label {
       display: block;
-      margin-bottom: 4px;
+      margin-bottom: 2px;
       font-weight: 500;
       color: #202124;
+      font-size: 13px;
     }
     
     select, textarea, input[type="text"], input[type="number"] {
@@ -52,8 +53,16 @@
     
     textarea {
       font-family: Consolas, monospace;
-      min-height: 100px;
+      min-height: 60px;
       resize: vertical;
+    }
+
+    #prompt {
+      min-height: 54px;
+    }
+
+    #contextJson, #question {
+      min-height: 56px;
     }
     
     button {
@@ -79,6 +88,19 @@
       background: #555;
     }
 
+    .actions-bar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .pipeline-status-line {
+      font-size: 13px;
+      font-weight: 600;
+      color: #1f2937;
+    }
+
     .copy-btn {
       background: #0b8043;
       margin-top: 6px;
@@ -101,25 +123,27 @@
     .grid-2 {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 20px;
-      margin-bottom: 20px;
+      gap: 8px;
+      margin-bottom: 8px;
     }
     
     @media (max-width: 1024px) {
       .grid-2 { grid-template-columns: 1fr; }
+      .demo-nav-grid { grid-template-columns: 1fr; }
+      .demo-nav-buttons { justify-content: flex-start; }
     }
     
     .code-block {
       background: #f5f5f5;
       border: 1px solid #ddd;
       border-radius: 4px;
-      padding: 15px;
-      margin-top: 12px;
+      padding: 8px;
+      margin-top: 6px;
       font-family: Consolas, monospace;
-      font-size: 13px;
-      line-height: 1.4;
+      font-size: 12px;
+      line-height: 1.3;
       overflow-x: auto;
-      max-height: 400px;
+      height: 190px;
       overflow-y: auto;
     }
     
@@ -137,12 +161,12 @@
       background: #f5f5f5;
       border: 1px solid #ddd;
       border-radius: 4px;
-      padding: 12px;
-      margin-top: 12px;
+      padding: 6px;
+      margin-top: 6px;
       white-space: pre-wrap;
       font-family: Consolas, monospace;
-      font-size: 12px;
-      max-height: 300px;
+      font-size: 11px;
+      max-height: 160px;
       overflow: auto;
       word-break: break-word;
     }
@@ -162,10 +186,10 @@
     .hidden { display: none; }
     
     .status {
-      padding: 10px 12px;
+      padding: 6px 8px;
       border-radius: 4px;
-      margin-top: 12px;
-      font-size: 13px;
+      margin-top: 6px;
+      font-size: 12px;
       font-weight: 500;
     }
     
@@ -175,13 +199,40 @@
     
     .example-controls {
       background: #f9f9f9;
-      padding: 15px;
+      padding: 8px;
       border-radius: 4px;
-      margin-bottom: 15px;
+      margin-bottom: 6px;
+    }
+
+    .demo-nav-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      align-items: end;
+    }
+
+    .demo-nav-buttons {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      align-items: center;
+      height: 100%;
+      flex-wrap: wrap;
+    }
+
+    .demo-nav-buttons button {
+      min-width: 48px;
+      margin-top: 0;
+      margin-right: 0;
     }
     
     .history-section {
-      margin-top: 20px;
+      margin-top: 8px;
+    }
+
+    p {
+      margin: 4px 0 6px;
+      font-size: 13px;
     }
     
     .history-table {
@@ -223,34 +274,64 @@
     <div class="section">
       <h2>⚡ Quick Demo</h2>
       <div class="example-controls">
-        <div class="form-group">
-          <label for="exampleSelect">Выберите пример (8 готовых сценариев):</label>
-          <select id="exampleSelect">
-            <option value="">-- Выберите пример --</option>
-            <option value="array_last">1. Array Last - Получи последний email</option>
-            <option value="math_increment">2. Math Increment - Увеличение счетчика</option>
-            <option value="object_clean">3. Object Clean - Очистка полей</option>
-            <option value="datetime_iso">4. DateTime ISO - Преобразование времени</option>
-            <option value="array_filter">5. Array Filter - Фильтрация массива</option>
-            <option value="ensure_array">6. Ensure Array - Проверка типов</option>
-            <option value="square_number">7. Square Number - Квадрат числа</option>
-            <option value="unix_time">8. Unix Time - Конвертация в Unix</option>
-          </select>
+        <div class="demo-nav-grid">
+          <div class="form-group">
+            <label for="exampleSelect">Примеры от организаторов:</label>
+            <select id="exampleSelect"></select>
+          </div>
+          <div class="demo-nav-buttons">
+            <label style="width: 100%; margin-bottom: 0;">Выберите пример (20 демо-сценариев):</label>
+            <button id="btnPrevExample" class="secondary" onclick="navigateScenario(-1)">◀</button>
+            <button id="btnNextExample" class="secondary" onclick="navigateScenario(1)">▶</button>
+          </div>
         </div>
         <button id="btnLoadExample" onclick="loadExample()">Загрузить пример</button>
         <button id="btnClearAll" class="secondary" onclick="clearAll()">Очистить</button>
       </div>
     </div>
 
-    <!-- MAIN WORKFLOW SECTION -->
-    <div class="section" id="generateSection">
-      <h2>📝 1. Генерация YAML</h2>
-      <div class="form-group">
-        <label for="prompt">Задача</label>
-        <textarea id="prompt" placeholder="Пример: Из полученного списка email получи последний"></textarea>
+    <!-- FIRST COMPOSITE BLOCK: GENERATE | EXEC RESULTS -->
+    <div class="grid-2" id="topWorkflowSection">
+      <div class="section" id="generateSection">
+        <div class="form-group">
+          <label for="prompt">Задача</label>
+          <textarea id="prompt" placeholder="Пример: Из полученного списка email получи последний"></textarea>
+        </div>
+        <button id="btnGenerate" onclick="generateYAML(false)">Сгенерировать без автокоррекции</button>
+        <button id="btnGenerateAuto" onclick="generateYAML(true)">Сгенерировать с автокоррекцией</button>
       </div>
-      <button id="btnGenerate" onclick="generateYAML()">Сгенерировать и выполнить</button>
+
+      <div class="section" id="resultsSection">
+        <div id="executeResults" class="hidden" style="margin-top: 10px;">
+          <div class="form-group">
+            <label>Статус</label>
+            <div id="execStatus" class="output"></div>
+          </div>
+          <div class="form-group">
+            <label>Stdout</label>
+            <div id="execStdout" class="output"></div>
+          </div>
+          <div class="form-group">
+            <label>Stderr</label>
+            <div id="execStderr" class="output"></div>
+          </div>
+          <div class="form-group">
+            <label>Exit code</label>
+            <div id="execExitCode" class="output"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="statusMessagesSection">
       <div id="generateStatus" class="hidden status"></div>
+      <div id="executeStatus" class="hidden status"></div>
+    </div>
+
+    <div class="section" id="pipelineStatusSection">
+      <div class="pipeline-status-line">
+        <span id="pipelineGenerateSummary">-</span> / <span id="pipelineExecuteSummary">-</span>
+      </div>
     </div>
 
     <!-- GRID: YAML vs LUA -->
@@ -272,6 +353,32 @@
       </div>
     </div>
 
+    <div class="grid-2" id="rawExecuteSection" style="display: none;">
+      <div class="section" id="rawModelSection">
+        <h3>Сырой ответ модели</h3>
+        <div id="rawModelOutput" class="code-block">
+          <pre><code></code></pre>
+        </div>
+      </div>
+
+      <!-- EXECUTE SECTION -->
+      <div class="section" id="executeSection">
+        <p id="operationText"></p>
+
+        <div class="form-group">
+          <label for="contextJson">Контекст (JSON, опционально)</label>
+          <textarea id="contextJson" placeholder='{"data": [1, 2, 3]}' style="min-height: 80px;"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="section hidden" id="executeControlsSection">
+      <div class="actions-bar">
+        <button id="btnExecute" onclick="executeLua()">Выполнить</button>
+        <button id="btnExecuteReset" class="secondary" onclick="resetExecute()">Вернуться</button>
+      </div>
+    </div>
+
     <!-- ASK SECTION -->
     <div class="section hidden" id="askSection">
       <h2>❓ 2. Уточнить (если нужно)</h2>
@@ -281,52 +388,21 @@
       </div>
       <p id="feedbackText"></p>
       <div id="feedbackList" class="output" style="white-space: pre-wrap; font-size: 13px;"></div>
+      <div class="form-group" style="margin-top: 8px;">
+        <label for="fixGuide">Что исправить</label>
+        <div id="fixGuide" class="output" style="white-space: pre-wrap;"></div>
+      </div>
+      <button id="btnAskHintTop" class="secondary" onclick="autofillAskHint()">Подставить подсказку в вопрос</button>
       <div class="form-group">
         <label for="question">Вопрос</label>
         <textarea id="question" placeholder="Опиши нужные уточнения..."></textarea>
       </div>
       <button id="btnAsk" onclick="askQuestion()">Отправить уточнение</button>
-      <button id="btnAskHint" class="secondary" onclick="autofillAskHint()">Подставить подсказку</button>
       <button id="btnAskReset" class="secondary" onclick="resetAsk()">Вернуться</button>
       <div id="askStatus" class="hidden status"></div>
       <div class="form-group" style="margin-top: 12px;">
         <label for="askResponse">Ответ /ask</label>
         <div id="askResponse" class="output" style="white-space: pre-wrap;"></div>
-      </div>
-    </div>
-
-    <!-- EXECUTE SECTION -->
-    <div class="section hidden" id="executeSection">
-      <h2>⚡ 3. Выполнить Lua код</h2>
-      <p id="operationText"></p>
-      
-      <div class="form-group">
-        <label for="contextJson">Контекст (JSON, опционально)</label>
-        <textarea id="contextJson" placeholder='{"data": [1, 2, 3]}' style="min-height: 80px;"></textarea>
-      </div>
-      
-      <button id="btnExecute" onclick="executeLua()">Выполнить</button>
-      <button id="btnExecuteReset" class="secondary" onclick="resetExecute()">Вернуться</button>
-      <div id="executeStatus" class="hidden status"></div>
-      
-      <div id="executeResults" class="hidden" style="margin-top: 20px;">
-        <h3>Результаты выполнения</h3>
-        <div class="form-group">
-          <label>Статус</label>
-          <div id="execStatus" class="output"></div>
-        </div>
-        <div class="form-group">
-          <label>Stdout</label>
-          <div id="execStdout" class="output"></div>
-        </div>
-        <div class="form-group">
-          <label>Stderr</label>
-          <div id="execStderr" class="output"></div>
-        </div>
-        <div class="form-group">
-          <label>Exit code</label>
-          <div id="execExitCode" class="output"></div>
-        </div>
       </div>
     </div>
 
@@ -459,14 +535,150 @@
       }
     };
 
+    const ORGANIZER_EXAMPLE_ORDER = [
+      "array_last",
+      "math_increment",
+      "object_clean",
+      "datetime_iso",
+      "array_filter",
+      "ensure_array",
+      "square_number",
+      "unix_time",
+    ];
+
+    const CUSTOM_SCENARIOS = [
+      {
+        title: "01. Last email (valid)",
+        prompt: "Получи последний email из wf.vars.emails",
+        context: { wf: { vars: { emails: ["a@mail.com", "b@mail.com", "c@mail.com"] } } },
+      },
+      {
+        title: "02. Increment counter (valid)",
+        prompt: "Увеличь wf.vars.counter на 2",
+        context: { wf: { vars: { counter: 10 } } },
+      },
+      {
+        title: "03. Filter with Discount (valid)",
+        prompt: "Оставь записи, где Discount не пустой",
+        context: { wf: { vars: { parsedCsv: [{ Discount: "5%" }, { Discount: "" }] } } },
+      },
+      {
+        title: "04. Datetime ISO from DATUM/TIME (valid)",
+        prompt: "Собери ISO из DATUM и TIME",
+        context: { wf: { vars: { json: { IDOC: { ZCDF_HEAD: { DATUM: "20240101", TIME: "121314" } } } } } },
+      },
+      {
+        title: "05. Ensure array items (valid)",
+        prompt: "Сделай items в packages массивом",
+        context: { wf: { vars: { json: { IDOC: { ZCDF_HEAD: { ZCDF_PACKAGES: [{ items: { sku: "A" } }] } } } } } },
+      },
+      {
+        title: "06. Object clean fields (valid)",
+        prompt: "Очисти поля ID и CALL",
+        context: { wf: { vars: { RESTbody: { result: [{ ID: 1, CALL: "x", A: 10 }] } } } },
+      },
+      {
+        title: "07. Unix from recallTime (valid)",
+        prompt: "Конвертируй recallTime в unix",
+        context: { wf: { initVariables: { recallTime: "2023-10-15T15:30:00+00:00" } } },
+      },
+      {
+        title: "08. Missing source demo (error)",
+        prompt: "Сделай фильтрацию без контекста",
+        context: {},
+      },
+      {
+        title: "09. Wrong date field demo (error)",
+        prompt: "Собери ISO из одной переменной timestamp",
+        context: { wf: { vars: { timestamp: "20231015153000" } } },
+      },
+      {
+        title: "10. Empty arrays demo (edge)",
+        prompt: "Возьми последний элемент пустого массива",
+        context: { wf: { vars: { emails: [] } } },
+      },
+      {
+        title: "11. Mixed Discount/Markdown (valid)",
+        prompt: "Оставь элементы по Discount или Markdown",
+        context: { wf: { vars: { parsedCsv: [{ Discount: "", Markdown: "1%" }, { Discount: "", Markdown: "" }] } } },
+      },
+      {
+        title: "12. Counter as string (error/auto-fix)",
+        prompt: "Инкрементируй строковый counter",
+        context: { wf: { vars: { counter: "10" } } },
+      },
+      {
+        title: "13. Missing wf block (error)",
+        prompt: "Возьми последний item",
+        context: { data: [1, 2, 3] },
+      },
+      {
+        title: "14. Big object clean (valid)",
+        prompt: "Удалить ID, ENTITY_ID, CALL из result",
+        context: { wf: { vars: { RESTbody: { result: [{ ID: 100, ENTITY_ID: 200, CALL: "c1", keep: true }] } } } },
+      },
+      {
+        title: "15. Bad datetime format (error)",
+        prompt: "Собери ISO, но время некорректно",
+        context: { wf: { vars: { json: { IDOC: { ZCDF_HEAD: { DATUM: "2024", TIME: "99" } } } } } },
+      },
+      {
+        title: "16. Ensure nested items (valid)",
+        prompt: "Нормализуй nested items",
+        context: { wf: { vars: { json: { IDOC: { ZCDF_HEAD: { ZCDF_PACKAGES: [{ items: [{ sku: "A" }] }, { items: { sku: "B" } }] } } } } } },
+      },
+      {
+        title: "17. Filter with nulls (valid)",
+        prompt: "Оставь элементы, где Discount не null",
+        context: { wf: { vars: { parsedCsv: [{ Discount: null }, { Discount: "7%" }] } } },
+      },
+      {
+        title: "18. Missing parsedCsv (error)",
+        prompt: "Фильтруй parsedCsv",
+        context: { wf: { vars: {} } },
+      },
+      {
+        title: "19. Unix with timezone +03 (valid)",
+        prompt: "Переведи recallTime в unix",
+        context: { wf: { initVariables: { recallTime: "2023-10-15T18:30:00+03:00" } } },
+      },
+      {
+        title: "20. Minimal prompt ambiguity (error/ask)",
+        prompt: "Сделай что-то с массивом",
+        context: { wf: { vars: { items: [1, 2, 3] } } },
+      },
+    ];
+
     // ==================== STATE ====================
     let currentSession = null;
     let currentYaml = null;
     let demoHistory = [];
     let lastFeedback = [];
+    let customScenarioIndex = 0;
+
+    function renderRawModelOutput(raw) {
+      const code = document.querySelector('#rawModelOutput code');
+      if (!code) return;
+
+      if (raw && String(raw).trim().length > 0) {
+        code.textContent = raw;
+        code.className = 'language-yaml';
+      } else {
+        code.textContent = '(модель не вернула текст)';
+        code.className = '';
+      }
+    }
+
+    function renderLuaOutput(luaCode) {
+      const code = document.querySelector('#luaOutput code');
+      if (!code) return;
+      code.textContent = luaCode || '';
+      code.className = 'language-lua';
+    }
 
     function openAskSection() {
       const ask = document.getElementById('askSection');
+      document.getElementById('gridSection').style.display = 'grid';
       ask.classList.remove('hidden');
       ask.scrollIntoView({ behavior: 'smooth', block: 'start' });
       const q = document.getElementById('question');
@@ -482,14 +694,71 @@
         return;
       }
 
-      const fb = lastFeedback[0];
-      const parts = [];
-      if (fb.hint) parts.push(fb.hint);
-      if (fb.field) parts.push(`Поле: ${fb.field}`);
-      if (fb.expected) parts.push(`Ожидается: ${fb.expected}`);
-      input.value = parts.join('. ');
+      input.value = buildManualFixQuestion(lastFeedback);
       input.focus();
       showStatus('askStatus', 'Подсказка подставлена, отредактируйте и отправьте', 'success');
+    }
+
+    function buildManualFixQuestion(feedback) {
+      if (!feedback || feedback.length === 0) {
+        return 'Исправь YAML строго по схеме. Верни только валидный YAML без пояснений.';
+      }
+
+      const fb = feedback[0];
+      let missingField = null;
+      if (fb.message) {
+        const m = fb.message.match(/'([^']+)' is a required property/);
+        if (m && m[1]) missingField = m[1];
+      }
+
+      if (missingField === 'date_field' || missingField === 'time_field') {
+        return 'Исправь YAML для datetime_iso строго по схеме. Верни только YAML: operation: datetime_iso, parameters.date_field: wf.vars.json.IDOC.ZCDF_HEAD.DATUM, parameters.time_field: wf.vars.json.IDOC.ZCDF_HEAD.TIME';
+      }
+
+      const parts = [];
+      if (fb.field) parts.push(`field=${fb.field}`);
+      if (fb.message) parts.push(`message=${fb.message}`);
+      if (fb.expected) parts.push(`expected=${fb.expected}`);
+      return `Исправь YAML по ошибке валидации: ${parts.join('; ')}. Верни только валидный YAML без пояснений.`;
+    }
+
+    function buildFixGuide(feedback) {
+      if (!feedback || feedback.length === 0) {
+        return '1) Уточните задачу в поле "Вопрос".\n2) Попросите вернуть только YAML без текста вокруг.';
+      }
+
+      const fb = feedback[0];
+      let missingField = null;
+      if (fb.message) {
+        const m = fb.message.match(/'([^']+)' is a required property/);
+        if (m && m[1]) missingField = m[1];
+      }
+
+      const lines = [];
+      lines.push(`Ошибка: ${fb.message || 'неизвестно'}`);
+      lines.push(`Где: ${fb.field || 'не указано'}`);
+
+      if (missingField) {
+        lines.push(`1) Добавьте обязательное поле parameters.${missingField}.`);
+      } else {
+        lines.push('1) Исправьте YAML по полю и сообщению об ошибке выше.');
+      }
+
+      if (missingField === 'date_field' || missingField === 'time_field') {
+        lines.push('2) Для datetime_iso должны быть оба поля: parameters.date_field и parameters.time_field.');
+        lines.push('3) Пример: date_field=wf.vars.json.IDOC.ZCDF_HEAD.DATUM, time_field=wf.vars.json.IDOC.ZCDF_HEAD.TIME.');
+      } else {
+        lines.push('2) Нажмите "Подставить подсказку", затем отправьте уточнение.');
+      }
+
+      lines.push('3) Попросите модель вернуть только YAML без комментариев.');
+      return lines.join('\n');
+    }
+
+    function renderFixGuide(feedback) {
+      const guide = document.getElementById('fixGuide');
+      if (!guide) return;
+      guide.textContent = buildFixGuide(feedback);
     }
 
     // ==================== UTILITIES ====================
@@ -498,6 +767,17 @@
       elem.textContent = text;
       elem.className = `status ${type} hidden`;
       if (text) elem.classList.remove('hidden');
+    }
+
+    function setPipelineSummary(kind, text) {
+      if (kind === 'generate') {
+        const el = document.getElementById('pipelineGenerateSummary');
+        if (el) el.textContent = text || '-';
+      }
+      if (kind === 'execute') {
+        const el = document.getElementById('pipelineExecuteSummary');
+        if (el) el.textContent = text || '-';
+      }
     }
 
     async function copyAllFromField(fieldId) {
@@ -601,6 +881,52 @@
       }
     }
 
+    function populateOrganizerExamples() {
+      const select = document.getElementById('exampleSelect');
+      if (!select) return;
+
+      select.innerHTML = '';
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = '-- Примеры от организаторов --';
+      select.appendChild(placeholder);
+
+      ORGANIZER_EXAMPLE_ORDER.forEach((key, idx) => {
+        const item = DEMO_EXAMPLES[key];
+        if (!item) return;
+        const option = document.createElement('option');
+        option.value = key;
+        option.textContent = `${idx + 1}. ${item.title}`;
+        select.appendChild(option);
+      });
+      select.value = '';
+    }
+
+    function applyCustomScenario(index) {
+      if (!CUSTOM_SCENARIOS.length) return;
+      currentSession = null;
+      currentYaml = null;
+      document.getElementById('executeResults').classList.add('hidden');
+      document.getElementById('executeStatus').classList.add('hidden');
+      document.getElementById('askSection').classList.add('hidden');
+      setExecuteEnabled(false);
+      setPipelineSummary('execute', '-');
+      customScenarioIndex = (index + CUSTOM_SCENARIOS.length) % CUSTOM_SCENARIOS.length;
+      const scenario = CUSTOM_SCENARIOS[customScenarioIndex];
+      document.getElementById('prompt').value = scenario.prompt;
+      document.getElementById('contextJson').value = JSON.stringify(scenario.context || {}, null, 2);
+      const label = `Наш пример: ${scenario.title}`;
+      const btnLoad = document.getElementById('btnLoadExample');
+      if (btnLoad) btnLoad.title = label;
+      const select = document.getElementById('exampleSelect');
+      if (select) select.value = '';
+      showStatus('generateStatus', label, 'loading');
+    }
+
+    function navigateScenario(delta) {
+      applyCustomScenario(customScenarioIndex + delta);
+    }
+
     function restoreHistory(index) {
       const h = demoHistory[index];
       document.getElementById('prompt').value = h.prompt;
@@ -615,16 +941,23 @@
       const select = document.getElementById('exampleSelect');
       const key = select.value;
       if (!key || !DEMO_EXAMPLES[key]) {
-        alert('Выберите пример');
         return;
       }
+
+      currentSession = null;
+      currentYaml = null;
+      document.getElementById('executeResults').classList.add('hidden');
+      document.getElementById('executeStatus').classList.add('hidden');
+      document.getElementById('askSection').classList.add('hidden');
+      setExecuteEnabled(false);
+      setPipelineSummary('execute', '-');
       
       const example = DEMO_EXAMPLES[key];
       document.getElementById('prompt').value = example.prompt;
       document.getElementById('contextJson').value = JSON.stringify(example.context, null, 2);
       
-      // Auto-generate
-      generateYAML();
+      // Auto-generate with autocorrection for demo flow
+      generateYAML(true);
     }
 
     function clearAll() {
@@ -632,15 +965,68 @@
       document.getElementById('contextJson').value = '';
       document.getElementById('exampleSelect').value = '';
       document.getElementById('gridSection').style.display = 'none';
+      document.getElementById('rawExecuteSection').style.display = 'none';
+      document.getElementById('executeControlsSection').classList.add('hidden');
       document.getElementById('askSection').classList.add('hidden');
-      document.getElementById('executeSection').classList.add('hidden');
       document.getElementById('yamlOutput').innerHTML = '<pre><code></code></pre>';
       document.getElementById('luaOutput').innerHTML = '<pre><code></code></pre>';
+      document.getElementById('rawModelOutput').innerHTML = '<pre><code></code></pre>';
       document.getElementById('generateStatus').classList.add('hidden');
+      document.getElementById('fixGuide').textContent = '';
+      document.getElementById('question').value = '';
+      setPipelineSummary('generate', '-');
+      setPipelineSummary('execute', '-');
+    }
+
+    function setExecuteEnabled(enabled) {
+      const btnExecute = document.getElementById('btnExecute');
+      if (btnExecute) {
+        btnExecute.disabled = !enabled;
+      }
     }
 
     // ==================== PHASE 2 & 3: GENERATE + HIGHLIGHTING ====================
-    async function generateYAML() {
+    function buildAutoCorrectionQuestion(feedback) {
+      if (!feedback || feedback.length === 0) {
+        return 'Исправь YAML по схеме и верни полностью валидный результат без пояснений.';
+      }
+      const fb = feedback[0];
+      const parts = [];
+      if (fb.field) parts.push(`Поле: ${fb.field}`);
+      if (fb.message) parts.push(`Ошибка: ${fb.message}`);
+      if (fb.expected) parts.push(`Ожидается: ${fb.expected}`);
+      if (fb.hint) parts.push(`Подсказка: ${fb.hint}`);
+      return `Исправь YAML по замечанию валидации. ${parts.join('. ')}. Верни только валидный YAML.`;
+    }
+
+    async function autoCorrectSession(initialData) {
+      let current = initialData;
+      let guard = 0;
+
+      while (current && !current.is_complete && guard < 5) {
+        guard += 1;
+        const question = buildAutoCorrectionQuestion(current.feedback);
+        showStatus('generateStatus', `Автокоррекция: попытка ${current.attempts + 1}...`, 'loading');
+
+        const resp = await fetch('/ask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: currentSession, question, auto_correction: true })
+        });
+
+        const data = await resp.json();
+        if (!resp.ok) {
+          showStatus('generateStatus', `Ошибка автокоррекции: ${data.detail?.message || JSON.stringify(data.detail)}`, 'error');
+          return current;
+        }
+
+        current = data;
+      }
+
+      return current;
+    }
+
+    async function generateYAML(autoCorrect = false) {
       const prompt = document.getElementById('prompt').value.trim();
       if (!prompt) {
         showStatus('generateStatus', 'Введите задачу', 'error');
@@ -648,9 +1034,12 @@
       }
 
       showStatus('generateStatus', 'Генерирую...', 'loading');
+      setPipelineSummary('generate', 'Генерация YAML...');
+      setPipelineSummary('execute', '-');
       document.getElementById('gridSection').style.display = 'grid';
+      document.getElementById('rawExecuteSection').style.display = 'grid';
+      document.getElementById('executeControlsSection').classList.remove('hidden');
       document.getElementById('askSection').classList.add('hidden');
-      document.getElementById('executeSection').classList.add('hidden');
 
       try {
         const resp = await fetch('/generate', {
@@ -659,14 +1048,22 @@
           body: JSON.stringify({ prompt })
         });
 
-        const data = await resp.json();
+        let data = await resp.json();
         if (!resp.ok) {
           showStatus('generateStatus', `Ошибка: ${data.detail?.message || JSON.stringify(data.detail)}`, 'error');
+          setPipelineSummary('generate', '❌ Ошибка генерации');
           return;
+        }
+
+        if (autoCorrect && !data.is_complete && data.session_id) {
+          currentSession = data.session_id;
+          data = await autoCorrectSession(data);
         }
 
         currentSession = data.session_id;
         currentYaml = data.yaml;
+        renderRawModelOutput(data.raw_model_output);
+        renderLuaOutput(data.lua_code);
 
         // Display YAML with highlighting
         const yamlStr = JSON.stringify(data.yaml, null, 2);
@@ -676,37 +1073,39 @@
 
         if (data.is_complete) {
           lastFeedback = [];
+          setExecuteEnabled(true);
+          renderFixGuide([]);
           showStatus('generateStatus', `✓ YAML сгенерирована (попытка ${data.attempts})`, 'success');
-          document.getElementById('executeSection').classList.remove('hidden');
+          setPipelineSummary('generate', `✓ YAML сгенерирована (попытка ${data.attempts})`);
           document.getElementById('operationText').textContent = `Операция: ${currentYaml.operation || '?'}`;
           const contextStr = document.getElementById('contextJson').value.trim();
           saveToHistory(prompt, currentYaml.operation, contextStr);
 
           // Display generated Lua code preview
-          if (data.lua_code) {
-            const luaCode = document.querySelector('#luaOutput code');
-            luaCode.textContent = data.lua_code;
-            luaCode.className = 'language-lua';
-          }
+          renderLuaOutput(data.lua_code);
 
           // Full pipeline from one click: generate -> execute
           await executeLua(true);
         } else {
+          setExecuteEnabled(false);
           showStatus('generateStatus', `❌ Валидация не прошла (попытка ${data.attempts})`, 'error');
-          const luaCode = document.querySelector('#luaOutput code');
-          luaCode.textContent = '';
-          luaCode.className = 'language-lua';
+          setPipelineSummary('generate', `❌ Валидация не прошла (попытка ${data.attempts})`);
+          renderLuaOutput(data.lua_code);
           if (data.feedback && data.feedback.length > 0) {
             lastFeedback = data.feedback;
+            renderFixGuide(data.feedback);
             const fb = data.feedback[0];
             const feedbackMsg = `Поле: ${fb.field}\nОшибка: ${fb.message}\nОжидается: ${fb.expected}\nПолучено: ${fb.got}${fb.hint ? '\nПодсказка: ' + fb.hint : ''}`;
             document.getElementById('feedbackText').textContent = feedbackMsg;
             document.getElementById('feedbackList').textContent = data.feedback.map((item, idx) => {
               return `${idx + 1}) поле=${item.field}; ошибка=${item.message}; ожидается=${item.expected}; получено=${item.got}${item.hint ? `; подсказка=${item.hint}` : ''}`;
             }).join('\n');
+            document.getElementById('question').value = buildManualFixQuestion(data.feedback);
             document.getElementById('askResponse').textContent = JSON.stringify(data, null, 2);
             document.getElementById('askSessionId').value = data.session_id || '';
-            openAskSection();
+            if (!autoCorrect) {
+              openAskSection();
+            }
           }
         }
 
@@ -714,6 +1113,7 @@
         hljs.highlightAll();
       } catch (e) {
         showStatus('generateStatus', `Исключение: ${e.message}`, 'error');
+        setPipelineSummary('generate', '❌ Исключение при генерации');
       }
     }
 
@@ -723,6 +1123,7 @@
       document.getElementById('question').value = '';
       document.getElementById('askStatus').classList.add('hidden');
       document.getElementById('feedbackList').textContent = '';
+      document.getElementById('fixGuide').textContent = '';
       document.getElementById('askResponse').textContent = '';
       lastFeedback = [];
     }
@@ -740,12 +1141,15 @@
       }
 
       showStatus('askStatus', 'Обрабатываю...', 'loading');
+      document.getElementById('gridSection').style.display = 'grid';
+      document.getElementById('rawExecuteSection').style.display = 'grid';
+      document.getElementById('executeControlsSection').classList.remove('hidden');
 
       try {
         const resp = await fetch('/ask', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ session_id: currentSession, question })
+          body: JSON.stringify({ session_id: currentSession, question, auto_correction: false })
         });
 
         const data = await resp.json();
@@ -755,13 +1159,17 @@
         }
 
         currentYaml = data.yaml;
+        renderRawModelOutput(data.raw_model_output);
+        renderLuaOutput(data.lua_code);
         document.getElementById('askResponse').textContent = JSON.stringify(data, null, 2);
         document.getElementById('askSessionId').value = currentSession;
         if (data.is_complete) {
           lastFeedback = [];
+          setExecuteEnabled(true);
+          renderFixGuide([]);
           showStatus('askStatus', `✓ YAML обновлена (попытка ${data.attempts})`, 'success');
+          document.getElementById('gridSection').style.display = 'grid';
           document.getElementById('askSection').classList.add('hidden');
-          document.getElementById('executeSection').classList.remove('hidden');
           document.getElementById('operationText').textContent = `Операция: ${currentYaml.operation || '?'}`;
           
           // Update YAML display
@@ -770,23 +1178,22 @@
           yamlCode.textContent = yamlStr;
           yamlCode.className = 'language-yaml';
 
-          if (data.lua_code) {
-            const luaCode = document.querySelector('#luaOutput code');
-            luaCode.textContent = data.lua_code;
-            luaCode.className = 'language-lua';
-          }
+          renderLuaOutput(data.lua_code);
           hljs.highlightAll();
         } else {
+          setExecuteEnabled(false);
           showStatus('askStatus', `❌ Всё ещё ошибка (попытка ${data.attempts})`, 'error');
+          document.getElementById('gridSection').style.display = 'grid';
           if (data.feedback && data.feedback.length > 0) {
             lastFeedback = data.feedback;
+            renderFixGuide(data.feedback);
             const fb = data.feedback[0];
             const feedbackMsg = `Поле: ${fb.field}\nОшибка: ${fb.message}`;
             document.getElementById('feedbackText').textContent = feedbackMsg;
             document.getElementById('feedbackList').textContent = data.feedback.map((item, idx) => {
               return `${idx + 1}) поле=${item.field}; ошибка=${item.message}; ожидается=${item.expected}; получено=${item.got}${item.hint ? `; подсказка=${item.hint}` : ''}`;
             }).join('\n');
-            document.getElementById('question').value = '';
+            document.getElementById('question').value = buildManualFixQuestion(data.feedback);
             openAskSection();
           }
         }
@@ -800,11 +1207,13 @@
       if (!currentYaml) {
         if (!autoTriggered) {
           showStatus('executeStatus', 'Нет YAML для выполнения', 'error');
+          setPipelineSummary('execute', '❌ Нет YAML для выполнения');
         }
         return;
       }
 
       showStatus('executeStatus', 'Выполняю...', 'loading');
+      setPipelineSummary('execute', 'Выполнение Lua...');
       document.getElementById('executeResults').classList.add('hidden');
 
       try {
@@ -815,6 +1224,7 @@
             context = JSON.parse(contextStr);
           } catch (e) {
             showStatus('executeStatus', `Ошибка JSON контекста: ${e.message}`, 'error');
+            setPipelineSummary('execute', '❌ Ошибка JSON контекста');
             return;
           }
         }
@@ -831,6 +1241,7 @@
         const data = await resp.json();
         if (!resp.ok) {
           showStatus('executeStatus', `Ошибка: ${data.detail?.message || JSON.stringify(data.detail)}`, 'error');
+          setPipelineSummary('execute', '❌ Ошибка выполнения');
           return;
         }
 
@@ -843,6 +1254,7 @@
         hljs.highlightAll();
 
         showStatus('executeStatus', `✓ Выполнено (статус: ${execResult.status})`, execResult.status === 'success' ? 'success' : 'error');
+        setPipelineSummary('execute', `✓ Выполнено (статус: ${execResult.status})`);
         
         document.getElementById('execStatus').textContent = execResult.status;
         document.getElementById('execStdout').textContent = execResult.stdout || '(пусто)';
@@ -851,22 +1263,22 @@
         document.getElementById('executeResults').classList.remove('hidden');
       } catch (e) {
         showStatus('executeStatus', `Исключение: ${e.message}`, 'error');
+        setPipelineSummary('execute', '❌ Исключение при выполнении');
       }
     }
 
     function resetExecute() {
-      document.getElementById('executeSection').classList.add('hidden');
+      document.getElementById('rawExecuteSection').style.display = 'none';
+      document.getElementById('executeControlsSection').classList.add('hidden');
       document.getElementById('contextJson').value = '';
       document.getElementById('executeResults').classList.add('hidden');
+      document.getElementById('executeStatus').classList.add('hidden');
     }
 
     // ==================== INITIALIZATION ====================
     document.addEventListener('DOMContentLoaded', () => {
-      const generateSection = document.getElementById('generateSection');
-      const executeSection = document.getElementById('executeSection');
-      if (generateSection && executeSection && generateSection.parentNode) {
-        generateSection.parentNode.insertBefore(executeSection, generateSection.nextSibling);
-      }
+      populateOrganizerExamples();
+      applyCustomScenario(0);
       attachCopyButtons();
       loadFromStorage();
     });

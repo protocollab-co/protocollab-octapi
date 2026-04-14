@@ -22,6 +22,7 @@ def test_ask_completes_after_clarification(monkeypatch):
     assert first.status_code == 200
     first_body = first.json()
     assert first_body["is_complete"] is False
+    assert first_body["lua_code"].startswith("-- Diagnostic Lua fallback")
 
     second = client.post(
         "/ask",
@@ -47,11 +48,17 @@ def test_ask_returns_controlled_error_when_attempts_exhausted(monkeypatch):
     assert first.status_code == 200
     session_id = first.json()["session_id"]
 
-    second = client.post("/ask", json={"session_id": session_id, "question": "уточнение 1"})
+    second = client.post(
+        "/ask",
+        json={"session_id": session_id, "question": "уточнение 1", "auto_correction": True},
+    )
     assert second.status_code == 200
     assert second.json()["attempts"] == 2
 
-    third = client.post("/ask", json={"session_id": session_id, "question": "уточнение 2"})
+    third = client.post(
+        "/ask",
+        json={"session_id": session_id, "question": "уточнение 2", "auto_correction": True},
+    )
     assert third.status_code == 409
     detail = third.json()["detail"]
     assert detail["code"] == "attempt_limit_reached"
@@ -91,6 +98,7 @@ def test_ask_fixes_expression_error_within_three_attempts(monkeypatch):
     first_body = first.json()
     assert first_body["is_complete"] is False
     assert first_body["feedback"][0]["source"] == "expression"
+    assert first_body["lua_code"].startswith("-- Diagnostic Lua fallback")
 
     second = client.post(
         "/ask",

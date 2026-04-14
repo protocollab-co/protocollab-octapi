@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+from datetime import datetime, timezone
 import os
 import subprocess
 import uuid
@@ -47,6 +48,41 @@ class DockerSandboxExecutor:
         self.timeout_seconds = timeout_seconds
         self.memory_mb = memory_mb
         self.network_mode = network_mode
+        self._runtime_log_path = Path("logs") / "runtime.log"
+
+    def _append_runtime_log(
+        self,
+        *,
+        status: str,
+        exit_code: int,
+        stdout: str,
+        stderr: str,
+        lua_code: str,
+        context: dict[str, Any] | None,
+    ) -> None:
+        try:
+            self._runtime_log_path.parent.mkdir(parents=True, exist_ok=True)
+            if self._runtime_log_path.exists() and self._runtime_log_path.stat().st_size > 1_000_000:
+                self._runtime_log_path.rename(self._runtime_log_path.with_suffix(".log.1"))
+
+            ts = datetime.now(timezone.utc).isoformat()
+            lua_preview = "\n".join(lua_code.splitlines()[:20])
+            stdout_preview = "\n".join((stdout or "").splitlines()[:30])
+            stderr_preview = "\n".join((stderr or "").splitlines()[:30])
+            context_preview = repr(context)[:1200]
+            record = (
+                f"[{ts}] status={status} exit_code={exit_code}\n"
+                f"context={context_preview}\n"
+                f"lua_preview:\n{lua_preview}\n"
+                f"stdout:\n{stdout_preview}\n"
+                f"stderr:\n{stderr_preview}\n"
+                "---\n"
+            )
+            with self._runtime_log_path.open("a", encoding="utf-8") as fp:
+                fp.write(record)
+        except Exception:
+            # Logging failures must not affect sandbox execution path.
+            return
 
     def build_script(self, lua_code: str, context: dict[str, Any] | None) -> str:
         lua_context = _to_lua_value(context or {})
@@ -54,7 +90,11 @@ class DockerSandboxExecutor:
             "local ctx = "
             + lua_context
             + "\n"
-            + "local wf = ctx.wf or { vars = {}, initVariables = {} }\n"
+            + "local wf_ctx = (type(ctx.wf) == 'table' and ctx.wf) or {}\n"
+            + "local wf = {\n"
+            + "  vars = (type(wf_ctx.vars) == 'table' and wf_ctx.vars) or {},\n"
+            + "  initVariables = (type(wf_ctx.initVariables) == 'table' and wf_ctx.initVariables) or {},\n"
+            + "}\n"
             + lua_code
         )
 
@@ -116,6 +156,15 @@ class DockerSandboxExecutor:
                 check=False,
             )
 
+            self._append_runtime_log(
+                status="success" if proc.returncode == 0 else "failed",
+                exit_code=proc.returncode,
+                stdout=proc.stdout,
+                stderr=proc.stderr,
+                lua_code=lua_code,
+                context=context,
+            )
+
             return ExecutionResult(
                 status="success" if proc.returncode == 0 else "failed",
                 stdout=proc.stdout,
@@ -133,10 +182,19 @@ class DockerSandboxExecutor:
             ) from exc
         except subprocess.TimeoutExpired as exc:
             subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, text=True, timeout=3, check=False)
+            timeout_stderr = (exc.stderr or "") + f"\nExecution timed out after {self.timeout_seconds}s."
+            self._append_runtime_log(
+                status="timeout",
+                exit_code=124,
+                stdout=exc.stdout or "",
+                stderr=timeout_stderr,
+                lua_code=lua_code,
+                context=context,
+            )
             return ExecutionResult(
                 status="timeout",
                 stdout=exc.stdout or "",
-                stderr=(exc.stderr or "") + f"\nExecution timed out after {self.timeout_seconds}s.",
+                stderr=timeout_stderr,
                 exit_code=124,
             )
         finally:

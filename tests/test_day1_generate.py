@@ -48,6 +48,8 @@ def test_generate_schema_error(monkeypatch):
     body = response.json()
     assert body["is_complete"] is False
     assert body["feedback"][0]["source"] == "schema"
+    assert body["lua_code"].startswith("-- Diagnostic Lua fallback")
+    assert body["lua_code"].rstrip().endswith("return nil")
 
 
 def test_generate_expression_error(monkeypatch):
@@ -72,3 +74,54 @@ def test_generate_expression_error(monkeypatch):
     body = response.json()
     assert body["is_complete"] is False
     assert body["feedback"][0]["source"] == "expression"
+    assert body["lua_code"].startswith("-- Diagnostic Lua fallback")
+
+
+def test_generate_normalizes_placeholder_scalar(monkeypatch):
+    client = TestClient(app)
+
+    async def fake_generate_yaml_text(prompt, context, system_prompt):
+        await asyncio.sleep(0)
+        return (
+            "operation: datetime_unix\n"
+            "parameters:\n"
+            "  source: {{wf.vars.timestamp}}\n"
+        )
+
+    monkeypatch.setattr("app.main.ollama.generate_yaml_text", fake_generate_yaml_text)
+    response = client.post("/generate", json={"prompt": "конвертируй timestamp в unix"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["is_complete"] is True
+    assert body["yaml"]["operation"] == "datetime_unix"
+    assert body["yaml"]["parameters"]["source"] == "wf.vars.timestamp"
+
+
+def test_generate_normalizes_array_filter_condition_rule_list(monkeypatch):
+    client = TestClient(app)
+
+    async def fake_generate_yaml_text(prompt, context, system_prompt):
+        await asyncio.sleep(0)
+        return (
+            "operation: array_filter\n"
+            "parameters:\n"
+            "  source: wf.vars.result\n"
+            "  condition:\n"
+            "    - field: Discount\n"
+            "      operator: not_null\n"
+            "    - field: Markdown\n"
+            "      operator: not_null\n"
+        )
+
+    monkeypatch.setattr("app.main.ollama.generate_yaml_text", fake_generate_yaml_text)
+    monkeypatch.setattr(
+        "app.services.yaml_pipeline.YamlValidationPipeline._resolve_expression_validator",
+        lambda self: (lambda expr: None),
+    )
+
+    response = client.post("/generate", json={"prompt": "отфильтруй записи с Discount или Markdown"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["is_complete"] is True
+    assert body["yaml"]["operation"] == "array_filter"
+    assert body["yaml"]["parameters"]["condition"] == "item.Discount != nil or item.Markdown != nil"

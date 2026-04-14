@@ -13,13 +13,17 @@ logger = logging.getLogger(__name__)
 
 
 class YamlValidationPipeline:
+    _PLACEHOLDER_LINE_PATTERN = re.compile(r"^(?P<prefix>\s*[^:#\n][^:\n]*:\s*)\{\{\s*(?P<value>[^{}\n]+?)\s*\}\}(?P<suffix>\s*)$")
+    _FIELD_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$")
+
     def __init__(self, schema_path: str) -> None:
         self.schema = json.loads(Path(schema_path).read_text(encoding="utf-8"))
         self._schema_validator = self._build_schema_validator(self.schema)
 
     def parse_and_validate(self, raw_text: str) -> dict[str, Any]:
-        yaml_text = self._extract_yaml(raw_text)
+        yaml_text = self._normalize_yaml_text(self._extract_yaml(raw_text))
         parsed = self._load_yaml(yaml_text)
+        parsed = self._normalize_parsed_payload(parsed)
         self._validate_schema(parsed)
         self._validate_expression_if_needed(parsed)
         return parsed
@@ -32,6 +36,97 @@ class YamlValidationPipeline:
         if generic_fence:
             return generic_fence.group(1).strip()
         return raw_text.strip()
+
+    def _normalize_yaml_text(self, yaml_text: str) -> str:
+        lines: list[str] = []
+        for line in yaml_text.splitlines():
+            match = self._PLACEHOLDER_LINE_PATTERN.match(line)
+            if match:
+                line = f"{match.group('prefix')}{match.group('value').strip()}{match.group('suffix')}"
+            lines.append(line)
+        return "\n".join(lines)
+
+    def _normalize_parsed_payload(self, parsed: dict[str, Any]) -> dict[str, Any]:
+        if not isinstance(parsed, dict):
+            return parsed
+
+        operation = parsed.get("operation")
+        parameters = parsed.get("parameters")
+        if operation == "array_filter" and isinstance(parameters, dict):
+            normalized_condition = self._normalize_array_filter_condition(parameters.get("condition"))
+            if normalized_condition:
+                parameters["condition"] = normalized_condition
+
+        return parsed
+
+    def _normalize_array_filter_condition(self, condition: Any) -> str | None:
+        if isinstance(condition, str) and condition.strip():
+            return condition.strip()
+
+        if isinstance(condition, list):
+            parts: list[str] = []
+            has_object_rules = False
+            for item in condition:
+                rule = self._condition_rule_to_expression(item)
+                if rule:
+                    parts.append(rule)
+                    has_object_rules = has_object_rules or isinstance(item, dict)
+                    continue
+                text = str(item).strip()
+                if text:
+                    parts.append(text)
+            if parts:
+                joiner = " or " if has_object_rules else " and "
+                return joiner.join(parts)
+
+        return None
+
+    def _condition_rule_to_expression(self, rule: Any) -> str | None:
+        if not isinstance(rule, dict):
+            return None
+
+        field = str(rule.get("field", "")).strip()
+        operator = str(rule.get("operator", "")).strip().lower()
+        if not field or not operator:
+            return None
+
+        field_expr = self._normalize_condition_field(field)
+        if not field_expr:
+            return None
+
+        value = rule.get("value")
+        if operator in {"not_null", "is_not_null", "exists", "present"}:
+            return f"{field_expr} != nil"
+        if operator in {"is_null", "null", "missing", "absent"}:
+            return f"{field_expr} == nil"
+        if operator in {"not_empty", "has_value"}:
+            return f"({field_expr} != nil and {field_expr} != '')"
+        if operator in {"empty", "is_empty"}:
+            return f"({field_expr} == nil or {field_expr} == '')"
+        if operator in {"eq", "equals"}:
+            return f"{field_expr} == {self._format_condition_literal(value)}"
+        if operator in {"ne", "not_equals"}:
+            return f"{field_expr} != {self._format_condition_literal(value)}"
+
+        return None
+
+    def _normalize_condition_field(self, field: str) -> str | None:
+        if not self._FIELD_NAME_PATTERN.fullmatch(field):
+            return None
+        if field.startswith("item."):
+            return field
+        return f"item.{field}"
+
+    @staticmethod
+    def _format_condition_literal(value: Any) -> str:
+        if value is None:
+            return "nil"
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return str(value)
+        text = str(value).replace("\\", "\\\\").replace('"', '\\"')
+        return f'"{text}"'
 
     def _load_yaml(self, yaml_text: str) -> dict[str, Any]:
         try:
@@ -68,7 +163,7 @@ class YamlValidationPipeline:
         except ModuleNotFoundError:
             import yaml
 
-            logger.warning("[YAML_PARSER] protocollab not installed; using PyYAML fallback")
+            logger.debug("[YAML_PARSER] protocollab not installed; using PyYAML fallback")
             data = yaml.safe_load(yaml_text)
             if not isinstance(data, dict):
                 raise NormalizedValidationError(
@@ -84,12 +179,15 @@ class YamlValidationPipeline:
             raise
         except Exception as exc:
             logger.exception("[YAML_PARSER] Failed to parse YAML")
+            hint = "Return only YAML without explanations."
+            if "{{" in yaml_text and "}}" in yaml_text:
+                hint = "Use plain strings like wf.vars.field instead of {{wf.vars.field}}."
             raise NormalizedValidationError(
                 field="yaml",
                 message=f"YAML parsing failed: {exc}",
                 expected="valid YAML",
                 got="invalid YAML",
-                hint="Return only YAML without explanations.",
+                hint=hint,
                 source="yaml",
             ) from exc
 

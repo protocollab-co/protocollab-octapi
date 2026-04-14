@@ -8,6 +8,7 @@ from app.main import app
 from app.models import ExecutionResult
 from app.services.error_mapper import NormalizedValidationError
 from app.services.lua_codegen import to_lua
+from app.services.sandbox_executor import DockerSandboxExecutor
 from app.services.template_selector import TemplateSelector
 from app.expression.ast_nodes import Call, Dict, List, Literal as ExprLiteral, Name as ExprName
 
@@ -219,3 +220,20 @@ def test_all_day3_templates_exist():
         "ensure_array_field.lua.jinja2",
     }
     assert names.issubset({item.name for item in base.iterdir() if item.is_file()})
+
+
+def test_sandbox_build_script_always_initializes_wf_vars_table():
+    executor = DockerSandboxExecutor(
+        docker_image="nickblah/lua:5.4-luarocks",
+        timeout_seconds=5,
+        memory_mb=64,
+        network_mode="none",
+    )
+
+    script = executor.build_script(
+        lua_code="return wf.vars.counter or 0\n",
+        context={"wf": {"initVariables": {"recallTime": "2023-10-15T15:30:00+00:00"}}},
+    )
+
+    assert "type(wf_ctx.vars) == 'table'" in script
+    assert "vars = (type(wf_ctx.vars) == 'table' and wf_ctx.vars) or {}" in script
