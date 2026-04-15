@@ -1,7 +1,7 @@
 version: "3.8"
 
 services:
-  # Ollama LLM service — provides neural-chat model for YAML generation
+  # Ollama LLM service — provides local model runtime
   ollama:
     image: ollama/ollama:latest
     container_name: localscript-ollama
@@ -34,7 +34,7 @@ services:
     environment:
       # Ollama configuration
       - OLLAMA_BASE_URL=http://ollama:11434
-      - OLLAMA_MODEL=neural-chat
+      - OLLAMA_MODEL=qwen2.5-coder:1.5b
       - OLLAMA_TIMEOUT_SECONDS=120
 
       # Sandbox Docker configuration

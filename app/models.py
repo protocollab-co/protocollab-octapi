@@ -25,6 +25,10 @@ class ModelSelectRequest(BaseModel):
     model: str = Field(min_length=1)
 
 
+class ProfileSelectRequest(BaseModel):
+    profile_id: str = Field(min_length=1)
+
+
 class ValidationErrorResponse(BaseModel):
     field: str
     message: str
@@ -96,3 +100,14 @@ class HealthResponse(BaseModel):
 class ModelListResponse(BaseModel):
     active_model: str
     models: list[str] = Field(default_factory=list)
+
+
+class ProfileOption(BaseModel):
+    id: str
+    label: str
+    description: str
+
+
+class ProfileListResponse(BaseModel):
+    active_profile: str
+    profiles: list[ProfileOption] = Field(default_factory=list)

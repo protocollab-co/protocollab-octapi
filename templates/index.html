@@ -280,11 +280,21 @@
     <h1 id="appTitle">🚀 LocalScript YAML Demo - Enhanced UI</h1>
     <p>Дни 1-4: Генерация YAML, уточнение и Lua выполнение с примерами от организаторов.</p>
     <div class="section" style="padding: 12px 16px;">
-      <div class="form-group" style="margin-bottom: 0; max-width: 420px;">
-        <label for="modelSelect">Модель Ollama</label>
-        <select id="modelSelect" onchange="switchActiveModel()">
-          <option value="">Загрузка списка моделей...</option>
-        </select>
+      <div class="grid-2">
+        <div class="form-group" style="margin-bottom: 0;">
+          <label for="modelSelect">Модель Ollama</label>
+          <select id="modelSelect" onchange="switchActiveModel()">
+            <option value="">Загрузка списка моделей...</option>
+          </select>
+          <div id="modelSelectHint" class="status hidden" style="margin-top: 8px;"></div>
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label for="profileSelect">Профиль генерации</label>
+          <select id="profileSelect" onchange="switchGenerationProfile()">
+            <option value="">Загрузка профилей...</option>
+          </select>
+          <div id="profileSelectHint" class="status hidden" style="margin-top: 8px;"></div>
+        </div>
       </div>
     </div>
 
@@ -1062,6 +1072,7 @@
 
     async function loadModelOptions() {
       const select = document.getElementById('modelSelect');
+      const hint = document.getElementById('modelSelectHint');
       if (!select) return;
 
       try {
@@ -1069,6 +1080,10 @@
         if (!resp.ok) {
           select.innerHTML = '<option value="">Модели недоступны</option>';
           select.disabled = true;
+          if (hint) {
+            hint.textContent = 'Не удалось получить список моделей из Ollama';
+            hint.className = 'status error';
+          }
           return;
         }
 
@@ -1079,6 +1094,10 @@
         if (models.length === 0) {
           select.innerHTML = '<option value="">Модели не найдены</option>';
           select.disabled = true;
+          if (hint) {
+            hint.textContent = 'В Ollama пока нет установленных моделей';
+            hint.className = 'status error';
+          }
           return;
         }
 
@@ -1092,15 +1111,26 @@
           select.appendChild(option);
         }
 
+        if (hint) {
+          hint.textContent = `Активная модель: ${data.active_model || models[0]}`;
+          hint.className = 'status success';
+        }
+
+        // Keep selector enabled even with one model so UI does not appear blocked.
         select.disabled = false;
       } catch (_e) {
         select.innerHTML = '<option value="">Модели недоступны</option>';
         select.disabled = true;
+        if (hint) {
+          hint.textContent = 'Не удалось подключиться к Ollama';
+          hint.className = 'status error';
+        }
       }
     }
 
     async function switchActiveModel() {
       const select = document.getElementById('modelSelect');
+      const hint = document.getElementById('modelSelectHint');
       if (!select || !select.value) return;
 
       showStatus('generateStatus', `Переключаю модель на ${select.value}...`, 'loading');
@@ -1118,11 +1148,97 @@
           return;
         }
 
+        if (hint) {
+          hint.textContent = `Активная модель: ${data.active_model}`;
+          hint.className = 'status success';
+        }
         showStatus('generateStatus', `✓ Активная модель: ${data.active_model}`, 'success');
+        await loadModelOptions();
         await populateModelTitle();
       } catch (e) {
         showStatus('generateStatus', `Ошибка переключения модели: ${e.message}`, 'error');
         await loadModelOptions();
+      }
+    }
+
+    async function loadProfileOptions() {
+      const select = document.getElementById('profileSelect');
+      const hint = document.getElementById('profileSelectHint');
+      if (!select) return;
+
+      try {
+        const resp = await fetch('/profiles');
+        if (!resp.ok) {
+          select.innerHTML = '<option value="">Профили недоступны</option>';
+          select.disabled = true;
+          if (hint) {
+            hint.textContent = 'Не удалось получить список профилей';
+            hint.className = 'status error';
+          }
+          return;
+        }
+
+        const data = await resp.json();
+        const profiles = Array.isArray(data.profiles) ? data.profiles : [];
+        select.innerHTML = '';
+
+        for (const profile of profiles) {
+          const option = document.createElement('option');
+          option.value = profile.id;
+          option.textContent = `${profile.label} (${profile.id})`;
+          if (profile.id === data.active_profile) {
+            option.selected = true;
+          }
+          select.appendChild(option);
+        }
+
+        select.disabled = profiles.length <= 1;
+        const active = profiles.find((item) => item.id === data.active_profile);
+        if (hint) {
+          hint.textContent = active ? `${active.label}: ${active.description}` : 'Выберите профиль генерации';
+          hint.className = 'status success';
+        }
+      } catch (_e) {
+        select.innerHTML = '<option value="">Профили недоступны</option>';
+        select.disabled = true;
+        if (hint) {
+          hint.textContent = 'Не удалось подключиться к API профилей';
+          hint.className = 'status error';
+        }
+      }
+    }
+
+    async function switchGenerationProfile() {
+      const select = document.getElementById('profileSelect');
+      const hint = document.getElementById('profileSelectHint');
+      if (!select || !select.value) return;
+
+      showStatus('generateStatus', `Переключаю профиль на ${select.value}...`, 'loading');
+
+      try {
+        const resp = await fetch('/profiles/select', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ profile_id: select.value })
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          showStatus('generateStatus', `Ошибка переключения профиля: ${data.detail?.message || JSON.stringify(data.detail)}`, 'error');
+          await loadProfileOptions();
+          return;
+        }
+
+        const active = Array.isArray(data.profiles)
+          ? data.profiles.find((item) => item.id === data.active_profile)
+          : null;
+        if (hint && active) {
+          hint.textContent = `${active.label}: ${active.description}`;
+          hint.className = 'status success';
+        }
+        showStatus('generateStatus', `✓ Активный профиль: ${data.active_profile}`, 'success');
+      } catch (e) {
+        showStatus('generateStatus', `Ошибка переключения профиля: ${e.message}`, 'error');
+        await loadProfileOptions();
       }
     }
 
@@ -1488,6 +1604,7 @@
     // ==================== INITIALIZATION ====================
     document.addEventListener('DOMContentLoaded', () => {
       loadModelOptions();
+      loadProfileOptions();
       populateOrganizerExamples();
       applyCustomScenario(0);
       populateModelTitle();

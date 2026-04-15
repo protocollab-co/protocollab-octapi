@@ -47,7 +47,8 @@ def test_generate_uses_json_prompt(monkeypatch):
     monkeypatch.setattr("app.main.ollama.generate_yaml_text", fake_generate_yaml_text)
     response = client.post("/generate", json={"prompt": "получи последний email"})
     assert response.status_code == 200
-    assert "Return only JSON" in captured["system_prompt"]
+    assert "JSON generator" in captured["system_prompt"]
+    assert "valid JSON object" in captured["system_prompt"]
 
 
 def test_generate_schema_error(monkeypatch):

@@ -21,6 +21,9 @@ from app.models import (
     HealthResponse,
     ModelListResponse,
     ModelSelectRequest,
+    ProfileListResponse,
+    ProfileOption,
+    ProfileSelectRequest,
     SessionState,
 )
 from app.services.error_mapper import NormalizedValidationError
@@ -53,6 +56,37 @@ json_system_prompt = (_APP_ROOT / "prompts" / "json_generation.md").read_text(en
 yaml_system_prompt = (_APP_ROOT / "prompts" / "yaml_generation.md").read_text(encoding="utf-8")
 _templates_dir = str(_APP_ROOT / settings.templates_dir) if not Path(settings.templates_dir).is_absolute() else settings.templates_dir
 _templates_count = len(list(Path(_templates_dir).glob("*.jinja2")))
+_GENERATION_PROFILES: dict[str, dict[str, str]] = {
+    "balanced": {
+        "label": "Balanced",
+        "description": "Стандартный режим генерации без усиленных ограничений.",
+        "generate_suffix": "",
+        "follow_up_suffix": "",
+    },
+    "strict-json": {
+        "label": "Strict JSON",
+        "description": "Максимально прижимает первую генерацию к schema-valid JSON.",
+        "generate_suffix": (
+            "\n\nProfile mode: Strict JSON. Prefer the simplest schema-valid object. "
+            "Avoid optional structure changes and keep field values deterministic."
+        ),
+        "follow_up_suffix": (
+            "\n\nProfile mode: Strict JSON follow-up. Make the smallest possible correction and preserve intent."
+        ),
+    },
+    "literal-fields": {
+        "label": "Literal Fields",
+        "description": "Строже удерживает path-like поля и типы параметров.",
+        "generate_suffix": (
+            "\n\nProfile mode: Literal Fields. Keep path-like values as plain strings only. "
+            "Do not rewrite source paths into helper objects, arrays, or templates."
+        ),
+        "follow_up_suffix": (
+            "\n\nProfile mode: Literal Fields follow-up. Preserve existing path-like field values and fix only invalid types or names."
+        ),
+    },
+}
+_active_generation_profile = "balanced"
 template_selector = TemplateSelector(templates_dir=_templates_dir)
 lua_codegen = LuaCodeGenerator(templates_dir=_templates_dir)
 lua_validator = LuaCodeValidator(
@@ -98,6 +132,20 @@ def _build_follow_up_prompt(session: SessionState, question: str | None) -> str:
         )
 
     return prompt
+
+
+def _build_profiled_system_prompt(base_prompt: str, phase: str) -> str:
+    profile = _GENERATION_PROFILES.get(_active_generation_profile, _GENERATION_PROFILES["balanced"])
+    suffix_key = "generate_suffix" if phase == "generate" else "follow_up_suffix"
+    suffix = profile.get(suffix_key, "")
+    return f"{base_prompt}{suffix}" if suffix else base_prompt
+
+
+def _list_profile_options() -> list[ProfileOption]:
+    return [
+        ProfileOption(id=profile_id, label=item["label"], description=item["description"])
+        for profile_id, item in _GENERATION_PROFILES.items()
+    ]
 
 
 def _build_diagnostic_lua(raw_output: str, feedback: FeedbackItem) -> str:
@@ -348,6 +396,33 @@ async def select_model(payload: ModelSelectRequest) -> ModelListResponse:
     return ModelListResponse(active_model=ollama.model, models=models)
 
 
+@app.get("/profiles")
+async def list_profiles() -> ProfileListResponse:
+    return ProfileListResponse(active_profile=_active_generation_profile, profiles=_list_profile_options())
+
+
+@app.post(
+    "/profiles/select",
+    responses={400: {"description": "Unknown profile"}},
+)
+async def select_profile(payload: ProfileSelectRequest) -> ProfileListResponse:
+    global _active_generation_profile
+
+    if payload.profile_id not in _GENERATION_PROFILES:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "profile_not_found",
+                "message": "Requested generation profile is not available.",
+                "profile_id": payload.profile_id,
+                "available_profiles": list(_GENERATION_PROFILES.keys()),
+            },
+        )
+
+    _active_generation_profile = payload.profile_id
+    return ProfileListResponse(active_profile=_active_generation_profile, profiles=_list_profile_options())
+
+
 @app.post(
     "/generate",
     responses={
@@ -365,7 +440,11 @@ async def generate(payload: GenerateRequest) -> GenerateResponse:
         )
         session_store.create(session)
         logger.info("[SESSION] Created session_id=%s", session.session_id)
-        return await _run_single_attempt(session=session, prompt=payload.prompt, system_prompt=json_system_prompt)
+        return await _run_single_attempt(
+            session=session,
+            prompt=payload.prompt,
+            system_prompt=_build_profiled_system_prompt(json_system_prompt, phase="generate"),
+        )
     except HTTPError as exc:
         logger.exception("[OLLAMA] Generate call failed")
         raise HTTPException(status_code=503, detail=f"Ollama request failed: {exc}") from exc
@@ -402,7 +481,11 @@ async def ask(payload: AskRequest) -> GenerateResponse:
         session.context["last_user_question"] = payload.question
 
         prompt = _build_follow_up_prompt(session=session, question=payload.question)
-        result = await _run_single_attempt(session=session, prompt=prompt, system_prompt=yaml_system_prompt)
+        result = await _run_single_attempt(
+            session=session,
+            prompt=prompt,
+            system_prompt=_build_profiled_system_prompt(yaml_system_prompt, phase="follow_up"),
+        )
         if payload.auto_correction and not result.is_complete and session.attempts >= session.max_attempts:
             _raise_controlled_session_error(
                 status_code=409,

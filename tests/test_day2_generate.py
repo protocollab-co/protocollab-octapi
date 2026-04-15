@@ -58,8 +58,10 @@ def test_ask_uses_yaml_prompt(monkeypatch):
         json={"session_id": first.json()["session_id"], "question": "используй operation array_last"},
     )
     assert second.status_code == 200
-    assert "Return only JSON" in captured_prompts[0]
-    assert "Return only YAML" in captured_prompts[1]
+    assert "JSON generator" in captured_prompts[0]
+    assert "valid JSON object" in captured_prompts[0]
+    assert "YAML generator" in captured_prompts[1]
+    assert "exact top-level shape" in captured_prompts[1]
 
 
 def test_ask_returns_controlled_error_when_attempts_exhausted(monkeypatch):

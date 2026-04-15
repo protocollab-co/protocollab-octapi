@@ -155,6 +155,37 @@ class TestModelSelectionEndpoints:
         assert body["model"] == "llama3.2:3b"
 
 
+class TestGenerationProfileEndpoints:
+    def test_profiles_endpoint_returns_active_profile_and_options(self):
+        """GET /profiles must expose the active generation profile and available options."""
+        client = TestClient(app)
+        response = client.get("/profiles")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["active_profile"]
+        assert isinstance(body["profiles"], list)
+        assert any(item["id"] == "balanced" for item in body["profiles"])
+
+    def test_profile_select_switches_active_profile(self):
+        """POST /profiles/select must update the active generation profile."""
+        client = TestClient(app)
+        response = client.post("/profiles/select", json={"profile_id": "strict-json"})
+        assert response.status_code == 200
+        body = response.json()
+        assert body["active_profile"] == "strict-json"
+
+        reset = client.post("/profiles/select", json={"profile_id": "balanced"})
+        assert reset.status_code == 200
+
+    def test_profile_select_rejects_unknown_profile(self):
+        """POST /profiles/select must reject unknown profiles."""
+        client = TestClient(app)
+        response = client.post("/profiles/select", json={"profile_id": "missing-profile"})
+        assert response.status_code == 400
+        detail = response.json()["detail"]
+        assert detail["code"] == "profile_not_found"
+
+
 # ---------------------------------------------------------------------------
 # HealthResponse Pydantic model
 # ---------------------------------------------------------------------------

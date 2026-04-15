@@ -1,489 +1,260 @@
 # protocollab-octapi
 
-🚀 **LocalScript Фазы День 1-4:** Генерация YAML-контракта для MWS Octapi через Ollama + protocollab, валидация параметров, преобразование в Lua и безопасное выполнение в Docker sandbox.
+Локальный сервис для генерации структурированного контракта операции (operation + parameters), проверки валидности, генерации Lua-кода и безопасного выполнения в Docker sandbox.
 
-## 📋 Что реализовано
+## Что делает проект
 
-### День 1-2: YAML Pipeline
-- ✅ FastAPI с `/generate`, `/ask`, `/execute`, `/health` эндпоинтами
-- ✅ Генерация через локальную модель Ollama
-- ✅ Валидация YAML через protocollab (`yaml_serializer`, `jsonschema_validator`)
-- ✅ Валидация условий (`array_filter`) через `protocollab.expression.parse_expr`
-- ✅ Единый формат ошибок: `field`, `message`, `expected`, `got`, `hint`, `source`
-- ✅ Сессионное хранилище с историей попыток
-- ✅ Уточнение через `/ask` (follow-up) с контекстом истории
+По текстовой задаче сервис:
 
-### День 3-4: Lua Runtime + Security
-- ✅ Преобразование AST условий в Lua код (`to_lua` transpiler)
-- ✅ Параметр-валидация: безопасные Lua выражения, числовые параметры
-- ✅ Jinja2 шаблоны для 7 операций (array_last, math_increment, object_clean, array_filter, datetime_iso, datetime_unix, ensure_array_field)
-- ✅ Синтаксис-проверка Lua через `luac -p` в Docker
-- ✅ Безопасное выполнение в Docker sandbox с hardening:
-  - `--user 65534:65534` (nobody)
-  - `--cap-drop ALL` (no capabilities)
-  - `--no-new-privileges` (no privilege escalation)
-  - `--network none` (изолированная сеть)
-  - `--read-only` (read-only filesystem)
-  - `--pids-limit 64` (ограничение процессов)
-  - `--tmpfs /tmp` (временные файлы)
-- ✅ Timeout обработка (5 сек по умолчанию)
-- ✅ Контрол-символ escaping (\n, \r, \t) в Lua строках
+1. Генерирует структурированный контракт через локальную Ollama-модель.
+2. Валидирует данные по схеме и правилам выражений.
+3. Генерирует Lua из Jinja2-шаблонов.
+4. Проверяет синтаксис Lua и выполняет код в изолированной песочнице.
+5. Возвращает структурированный `feedback` для итеративного исправления через `/ask`.
 
-## 🚀 Docker Quick Start
+Проект ориентирован на локальный/offline запуск и воспроизводимые demo-сценарии.
 
-### One-command startup:
+## Ключевые особенности
 
-Перед запуском убедись, что submodule инициализирован:
+- Локальная инференс-модель через Ollama (`localhost:11434`).
+- Двухфазная генерация:
+  - первичная генерация в JSON-режиме,
+  - автокоррекция/уточнение в YAML-режиме.
+- Единый формат ошибок:
+  - `field`, `message`, `expected`, `got`, `hint`, `source`.
+- Поддержка 7 операций:
+  - `array_last`
+  - `math_increment`
+  - `object_clean`
+  - `array_filter`
+  - `datetime_iso`
+  - `datetime_unix`
+  - `ensure_array_field`
+- Безопасное выполнение Lua:
+  - предварительная синтаксическая проверка,
+  - изоляция в Docker с ограничениями.
+- Web UI с примерами, историей, статусами пайплайна, выбором модели и профиля.
+- Runtime-эндпоинты для моделей и профилей.
+
+## Краткая архитектура
+
+- API: `app/main.py`
+- Валидация/нормализация: `app/services/yaml_pipeline.py`
+- Генерация Lua: `app/services/lua_codegen.py` + `templates/octapi/*.jinja2`
+- Песочница: `app/services/sandbox_executor.py`
+- Сессии: `app/services/session_store.py`
+- UI: `templates/index.html`
+
+Диаграммы:
+
+- `docs/diagrams/day5_architecture.mmd`
+- `docs/diagrams/mvp_day1_day4_flow.mmd`
+
+## API
+
+Основные эндпоинты:
+
+- `GET /health` — статус сервиса, модели и docker runtime.
+- `POST /generate` — первичная генерация структурированного контракта.
+- `POST /ask` — уточнение/исправление в рамках сессии.
+- `POST /execute` — валидация + генерация Lua + выполнение.
+
+Управление моделью/профилем в рантайме:
+
+- `GET /models`
+- `POST /models/select`
+- `GET /profiles`
+- `POST /profiles/select`
+
+## Быстрый запуск (Docker)
+
+1. Инициализируйте submodule:
 
 ```bash
 git submodule update --init --recursive
 ```
+
+2. Запустите стек:
 
 ```bash
 docker-compose up --build
 ```
 
-Это поднимет:
-- 🦙 **Ollama** (localhost:11434) с моделью neural-chat
-- 🌐 **LocalScript API** (localhost:8888) с Web UI (/)
+3. Откройте UI:
 
-После старта откройте http://localhost:8888 в браузере.
+- http://localhost:8000
 
-**Для первого запуска (загрузка модели):**
-```bash
-# Посмотреть логи Ollama
-docker-compose logs -f ollama
+4. Остановка:
 
-# После сообщения "serving on ..." API стартует автоматически
-```
-
-### Остановка:
 ```bash
 docker-compose down
 ```
 
-## 🔧 Локальный запуск (без Docker)
+## Локальный запуск (без docker-compose)
 
-### 1. Установить зависимости
+### Требования
+
+- Python 3.11+
+- Docker
+- Ollama
+
+### Установка зависимостей
 
 ```bash
 python -m venv .venv
-# Windows PowerShell
-.venv\Scripts\Activate.ps1
-
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Expression-движок уже встроен
-
-Ничего дополнительно устанавливать не нужно: минимальный expression-модуль
-поставляется внутри проекта в папке `app/expression/`.
-
-### 3. Запустить Ollama
+### Запуск API-скриптом
 
 ```bash
-ollama serve
-ollama pull neural-chat
+./scripts/run_api_8888.sh
 ```
 
-### 4. Запустить API
+Скрипт:
 
-```bash
-$env:PYTHONPATH = "."
-$env:OLLAMA_BASE_URL = "http://localhost:11434"
-$env:OLLAMA_MODEL = "neural-chat"
+- выставляет env-переменные по умолчанию,
+- проверяет доступность Ollama,
+- при необходимости пытается поднять `ollama serve`,
+- запускает API на `8888`.
 
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-```
+## Конфигурация
 
-Рекомендуемые параметры модели для демо:
-
-- `num_ctx=4096`
-- `num_predict=256`
-
-## ⚙️ Конфигурация
-
-Основные env-переменные:
+Ключевые переменные окружения:
 
 - `OLLAMA_BASE_URL` (по умолчанию `http://localhost:11434`)
 - `OLLAMA_MODEL` (по умолчанию `qwen2.5-coder:1.5b`)
-- `DOCKER_IMAGE` (по умолчанию `lua:5.4`)
-- `SANDBOX_TIMEOUT_SECONDS` (по умолчанию `5`)
-- `SANDBOX_MEMORY_MB` (по умолчанию `128`)
-- `SANDBOX_NETWORK_MODE` (по умолчанию `none`)
-- `TEMPLATES_DIR` (по умолчанию `templates/octapi`)
 - `SCHEMA_PATH` (по умолчанию `schemas/mws_operation.schema.json`)
+- `TEMPLATES_DIR` (по умолчанию `templates/octapi`)
+- `DOCKER_IMAGE`
+- `SANDBOX_TIMEOUT_SECONDS`
+- `SANDBOX_MEMORY_MB`
+- `SANDBOX_NETWORK_MODE`
 
-## 🗺️ MVP Flow Diagram
+## Операции с моделями (Ollama)
 
-Mermaid-диаграмма основного потока Day1-4: [docs/diagrams/mvp_day1_day4_flow.mmd](docs/diagrams/mvp_day1_day4_flow.mmd)
-
-## API
-
-### `GET /health`
-
-Проверяет доступность Ollama и наличие модели.
-
-Пример ответа:
-
-```json
-{
-	"status": "ok",
-	"ollama": "available",
-	"model": "qwen2.5-coder:1.5b",
-	"docker": "available"
-}
-```
-
-### `POST /generate`
-
-Запрос:
-
-```json
-{
-	"prompt": "Из полученного списка email получи последний.",
-	"context": {
-		"wf": {
-			"vars": {
-				"emails": ["a@example.com", "b@example.com"]
-			}
-		}
-	}
-}
-```
-
-Успешный ответ:
-
-```json
-{
-	"session_id": "<uuid>",
-	"yaml": {
-		"operation": "array_last",
-		"parameters": {
-			"source": "wf.vars.emails"
-		}
-	},
-	"attempts": 1,
-	"is_complete": true,
-	"feedback": []
-}
-```
-
-### `POST /ask` — Диалоговое уточнение
-
-Если модели не хватает информации (например, неизвестно имя переменной), она вернёт
-`"is_complete": false` со структурированным `feedback`. Пользователь может передать
-уточнение через `/ask`, и система повторит генерацию с учётом ответа.
-
-**Пример сессии:**
-
-**1. Первый запрос (модель просит уточнение):**
+Список установленных моделей:
 
 ```bash
-curl -X POST http://localhost:8000/generate \
-	-H "Content-Type: application/json" \
-	-d '{"prompt": "Увеличь значение переменной на 3"}'
+curl -s http://localhost:11434/api/tags
 ```
 
-Ответ (`is_complete: false`):
-
-```json
-{
-	"session_id": "abc-123",
-	"yaml": null,
-	"attempts": 1,
-	"is_complete": false,
-	"feedback": [
-		{
-			"field": "parameters.variable",
-			"message": "Missing required parameter: variable",
-			"expected": "string",
-			"got": "null",
-			"hint": "Specify the variable name, e.g. wf.vars.counter",
-			"source": "schema"
-		}
-	]
-}
-```
-
-**2. Уточнение через `/ask`:**
+Фоновая загрузка модели:
 
 ```bash
-curl -X POST http://localhost:8000/ask \
-	-H "Content-Type: application/json" \
-	-d '{"session_id": "abc-123", "answer": "переменная называется wf.vars.counter"}'
+curl -N -sS -X POST http://localhost:11434/api/pull \
+  -d '{"name":"deepseek-coder:6.7b","stream":true}'
 ```
 
-Ответ (`is_complete: true`):
-
-```json
-{
-	"session_id": "abc-123",
-	"yaml": {
-		"operation": "math_increment",
-		"parameters": {
-			"variable": "wf.vars.counter",
-			"step": 3
-		}
-	},
-	"attempts": 2,
-	"is_complete": true,
-	"feedback": []
-}
-```
-
-**3. Выполнение с тем же `session_id`:**
+Переключение активной модели для API:
 
 ```bash
-curl -X POST http://localhost:8000/execute \
-	-H "Content-Type: application/json" \
-	-d '{
-		"session_id": "abc-123",
-		"context": {"wf": {"vars": {"counter": 5}}}
-	}'
+curl -sS -X POST http://127.0.0.1:8888/models/select \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"qwen2.5-coder:1.5b"}'
 ```
 
-Ответ:
-
-```json
-{
-	"session_id": "abc-123",
-	"operation": "math_increment",
-	"lua_code": "return wf.vars.counter + 3\n",
-	"execution_result": {
-		"status": "success",
-		"stdout": "8\n",
-		"stderr": "",
-		"exit_code": 0
-	}
-}
-```
-
-Эндпоинт `/ask` хранит историю уточнений в той же сессии (`session_id`). Каждый
-вызов `/ask` добавляет ответ пользователя к контексту и запускает новую попытку
-генерации с полным историческим контекстом.
-
-### `POST /execute`
-
-Endpoint выполнения валидного YAML в Lua.
-
-Поддерживаются два режима:
-
-- по `session_id` (берётся валидный YAML из session state);
-- по inline `yaml` в теле запроса.
-
-Пример запроса:
-
-```json
-{
-	"yaml": {
-		"operation": "array_last",
-		"parameters": {
-			"source": "wf.vars.emails"
-		}
-	},
-	"context": {
-		"wf": {
-			"vars": {
-				"emails": ["a@example.com", "b@example.com"]
-			}
-		}
-	}
-}
-```
-
-Пример ответа:
-
-```json
-{
-	"session_id": null,
-	"operation": "array_last",
-	"lua_code": "local source = wf.vars.emails\n...",
-	"execution_result": {
-		"status": "success",
-		"stdout": "b@example.com\n",
-		"stderr": "",
-		"exit_code": 0
-	}
-}
-```
-
-Контролируемые ошибки возвращаются с деталями в `detail` и источником `source`:
-
-- `template_selector`
-- `lua_syntax`
-- `sandbox`
-
-Ответ при ошибке валидации (HTTP 200, `is_complete: false`):
-
-```json
-{
-	"session_id": "<uuid>",
-	"yaml": null,
-	"attempts": 1,
-	"is_complete": false,
-	"feedback": [
-		{
-			"field": "operation",
-			"message": "'unknown' is not one of ['array_last', ...]",
-			"expected": "schema-compliant value",
-			"got": "invalid",
-			"hint": "Check required fields and allowed operation values.",
-			"source": "schema"
-		}
-	]
-}
-```
-
-## Поддерживаемые операции (контракт Day 1)
-
-- `array_last`
-- `math_increment`
-- `object_clean`
-- `array_filter`
-- `datetime_iso`
-- `datetime_unix`
-- `ensure_array_field`
-
-Схема: `schemas/mws_operation.schema.json`.
-
-## Тесты
-
-Подробный запуск на Ubuntu/WSL: [docs/ubuntu_runbook.md](docs/ubuntu_runbook.md)
+Удаление модели из Ollama:
 
 ```bash
-pytest -q
+curl -sS -X DELETE http://localhost:11434/api/delete \
+  -d '{"name":"qwen2.5-coder:1.5b-strict"}'
 ```
 
-### WSL-режим (рекомендуется для стабильного локального прогона)
+## Обязательный блок для жюри
 
-Быстрый запуск (без integration):
+Эталонная модель для проверки:
 
 ```bash
-wsl sh -lc "cd /mnt/d/Work/protocollab-octapi && bash scripts/wsl_test.sh quick"
+ollama pull qwen2.5-coder:1.5b
 ```
 
-Полный запуск:
+Фиксированные параметры генерации (заданы в коде):
+
+- `num_ctx=4096`
+- `num_predict=256`
+- `batch=1`
+- `parallel=1`
+
+Источник параметров: `app/services/ollama_client.py`.
+
+## Предсдачный чеклист
+
+Перед отправкой в жюри проверьте:
+
+1. One-line запуск работает:
 
 ```bash
-wsl sh -lc "cd /mnt/d/Work/protocollab-octapi && bash scripts/wsl_test.sh full"
+docker-compose up --build
 ```
 
-Только integration-сценарии (8 sample requests):
+2. Локальная модель доступна:
 
 ```bash
-wsl sh -lc "cd /mnt/d/Work/protocollab-octapi && bash scripts/wsl_test.sh integration"
+curl -s http://localhost:11434/api/tags
 ```
 
-Скрипт автоматически:
-- создаёт/использует `.venv_wsl`
-- ставит зависимости из `requirements.txt`
-- запускает выбранный профиль тестов
-
-Запуск только Day1-Day4 тестов:
+3. API здоров:
 
 ```bash
-pytest tests/test_day1_generate.py tests/test_day2_generate.py tests/test_day3_execute.py tests/test_day4_runtime_contract.py -q
+curl -s http://localhost:8000/health
 ```
 
-Базовое покрытие Day 1:
-
-- успешный `array_last`
-- ошибка schema (`unknown operation`)
-- ошибка expression для `array_filter.condition`
-
-## ✅ Day 5: Финальная верификация (апрель 13, 2026)
-
-### Статус: ГОТОВО К СДАЧЕ
-
-Все 5 обязательных задач дня 5 завершены и задокументированы:
-
-#### 1. ✅ Эталонный сценарий (Reference Scenario)
-- **Документация**: [docs/verification/reference_scenario.md](docs/verification/reference_scenario.md)
-- **Сценарий**: Array Last операция (Get last email from list)
-- **Результат**: Успешно (is_complete=true, exit_code=0)
-- **Время выполнения**: ~5-10 сек (generate + execute)
-
-#### 2. ⏳ Пиковая VRAM
-- **Модель**: qwen2.5-coder:1.5b
-- **Параметры**: num_ctx=4096, num_predict=256, batch=1, parallel=1
-- **Ожидаемая VRAM**: < 8 GB (estimated: ~4-5 GB)
-- **Документация**: [docs/verification/vram_measurement.md](docs/verification/vram_measurement.md)
-- **Статус**: PENDING — измерение не выполнено (GPU доступ обязателен)
-
-#### 3. ✅ Запуск по README (Clean Environment)
-- **One-command**: `docker-compose up`
-- **Предварительно**: `git submodule update --init --recursive`
-- **Результат**: Успешный запуск без ручных шагов
-- **Health Check**: `/health` → {"status": "ok"}
-
-#### 4. ✅ Offline Verification (No External APIs)
-- **Статус**: 100% ЛОКАЛЬНОЕ (zero external API calls)
-- **Доказательство**: [docs/verification/offline_verification.md](docs/verification/offline_verification.md)
-- **Проверки**:
-  - Grep код на OpenAI/Anthropic/HuggingFace: 0 matches
-  - Ollama endpoint hardcoded на localhost:11434
-  - Docker sandbox: --network none (изолированная сеть)
-  - Syntax highlighting: vendored локально (без CDN)
-
-#### 5. ✅ Protocollab Integration (3 компонента)
-- **Документация**: [docs/deliverables/protocollab_integration.md](docs/deliverables/protocollab_integration.md)
-- **yaml_serializer**: Multi-doc YAML parsing в yaml_pipeline.py
-- **jsonschema_validator**: Schema validation для операций
-- **protocollab.expression**: Transpile conditions → Lua в lua_codegen.py
-- **Демонстрация**: Array filter с условиями использует все 3 компонента
-
-### Артефакты дня 5
-
-- ✅ [docs/verification/reference_scenario.md](docs/verification/reference_scenario.md) — Эталонный сценарий + curl команды
-- ✅ [docs/verification/vram_measurement.md](docs/verification/vram_measurement.md) — VRAM результаты
-- ✅ [docs/verification/offline_verification.md](docs/verification/offline_verification.md) — Доказательство offline
-- ✅ [docs/deliverables/protocollab_integration.md](docs/deliverables/protocollab_integration.md) — Интеграция protocollab
-- ✅ [docs/diagrams/day5_architecture.mmd](docs/diagrams/day5_architecture.mmd) — C4 диаграмма
-- ✅ [docs/deliverables/presentation_outline.md](docs/deliverables/presentation_outline.md) — 7-min презентация
-- ✅ [docs/deliverables/demo_video.md](docs/deliverables/demo_video.md) — План демо-видео
-
-### Проверка готовности
+4. Эталонный сценарий проходит:
 
 ```bash
-# 1. Verify tests pass
-pytest tests -q
-# → 22 passed, 10 skipped
-
-# 2. Verify docker one-command startup
-git submodule update --init --recursive
-docker-compose up
-# → API + Ollama running, /health OK
-
-# 3. Verify reference scenario
-curl -X POST http://localhost:8000/generate \
-  -H "Content-Type: application/json" \
-  -d '{"prompt": "Get last email from the list"}'
-# → is_complete: true, operation: array_last
-
-# 4. Verify offline
-grep -r "openai\|anthropic\|huggingface" app/
-# → 0 matches (no external APIs)
-
-# 5. Verify protocollab integration
-grep -r "yaml_serializer\|jsonschema_validator\|protocollab.expression" app/
-# → Found in yaml_pipeline.py, lua_codegen.py
+curl -sS -X POST http://localhost:8000/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"prompt":"Get last email from the list"}'
 ```
 
-### Definition of Done ✅
+5. Верификация VRAM заполнена фактами измерений (`nvidia-smi`), не `PENDING`:
 
-- ✅ Эталонный запрос проходит успешно
-- ⏳ Пиковый VRAM ≤ 8 GB (PENDING — ожидается измерение)
-- ✅ Проект запускается по README без команд вне документации
-- ✅ Все обязательные артефакты готовы и доступны
-- ✅ На защите можно показать сквозной путь с участием protocollab
+- `docs/verification/vram_measurement.md`
 
-## Роль protocollab
+## Тестирование
 
-`protocollab` в проекте отвечает за:
+Базовый запуск:
 
-- безопасный YAML parsing (`yaml_serializer`)
-- schema validation (`jsonschema_validator`)
-- expression parsing/validation для `array_filter.condition`
+```bash
+pytest -q tests
+```
 
-Fallback-режим без protocollab есть, но для защиты/демо рекомендуется именно protocollab runtime.
+Фокусный прогон Day1-Day4:
+
+```bash
+pytest -q tests/test_day1_generate.py tests/test_day2_generate.py tests/test_day3_execute.py tests/test_day4_runtime_contract.py
+```
+
+Материалы по верификации:
+
+- `docs/verification/reference_scenario.md`
+- `docs/verification/offline_verification.md`
+- `docs/verification/day5_delivery_checklist.md`
+
+## Документация
+
+Карта документации:
+
+- `docs/README.md`
+
+Рекомендуемые разделы:
+
+- Runbook: `docs/ubuntu_runbook.md`
+- Deliverables: `docs/deliverables/`
+- Planning: `docs/planning/`
+- История по дням: `docs/days/`
+- Roadmap: `docs/roadmap/`
+
+## Безопасность
+
+Генерируемый код рассматривается как недоверенный вход. Для процедуры проверки, ограничений sandbox и итоговой верификации см.:
+
+- `docs/verification/`
+- `docs/deliverables/protocollab_integration.md`
+
+## Примечание по лицензиям
+
+Используемые модели и сторонние компоненты лицензируются отдельно.
+Перед внешней поставкой проверьте условия лицензий в метаданных моделей и в `third_party/`.
