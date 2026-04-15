@@ -14,6 +14,30 @@
 
 Проект ориентирован на локальный/offline запуск и воспроизводимые demo-сценарии.
 
+## Чеклист по условиям задачи
+
+- ✅ Локальная open-source LLM через Ollama
+- ✅ Отсутствие внешних AI-вендоров в runtime
+- ✅ Генерация Lua-кода по запросу на естественном языке
+- ✅ Минимум одна итерация уточнения/доработки (`/ask`)
+- ✅ Проверяемая валидация результата (schema, expression, Lua syntax, sandbox)
+- ✅ One-line запуск через `docker-compose up --build`
+- ✅ C4-артефакт архитектуры в репозитории (`docs/diagrams/day5_architecture.mmd`)
+- ✅ Подготовлены артефакты презентации и демо-видео (`docs/deliverables/`)
+- ⏳ Подтвержденный peak VRAM <= 8 GB в `docs/verification/vram_measurement.md` (заполнить фактом измерения)
+
+## Чеклист по нашим фичам
+
+- ✅ Эндпоинты: `/health`, `/generate`, `/ask`, `/execute`
+- ✅ Runtime-управление моделью: `/models`, `/models/select`
+- ✅ Runtime-управление профилем генерации: `/profiles`, `/profiles/select`
+- ✅ Двухфазная генерация: JSON (generate) -> YAML (follow-up)
+- ✅ Единый формат ошибок: `field`, `message`, `expected`, `got`, `hint`, `source`
+- ✅ Генерация Lua через Jinja2 шаблоны (`templates/octapi/*.jinja2`)
+- ✅ Безопасный sandbox (Docker) + логирование runtime в `logs/runtime.log`
+- ✅ UI с примерами, историей и визуальным статусом этапов
+- ✅ Скрипт запуска `scripts/run_api_8888.sh` с авто-проверкой/подъемом Ollama
+
 ## Ключевые особенности
 
 - Локальная инференс-модель через Ollama (`localhost:11434`).
