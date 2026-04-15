@@ -21,14 +21,17 @@ class YamlValidationPipeline:
         self._schema_validator = self._build_schema_validator(self.schema)
 
     def parse_and_validate(self, raw_text: str) -> dict[str, Any]:
-        yaml_text = self._normalize_yaml_text(self._extract_yaml(raw_text))
-        parsed = self._load_yaml(yaml_text)
+        structured_text = self._normalize_yaml_text(self._extract_yaml(raw_text))
+        parsed = self._load_yaml(structured_text)
         parsed = self._normalize_parsed_payload(parsed)
         self._validate_schema(parsed)
         self._validate_expression_if_needed(parsed)
         return parsed
 
     def _extract_yaml(self, raw_text: str) -> str:
+        fenced_json = re.search(r"```json\s*(.*?)```", raw_text, flags=re.DOTALL | re.IGNORECASE)
+        if fenced_json:
+            return fenced_json.group(1).strip()
         fenced = re.search(r"```yaml\s*(.*?)```", raw_text, flags=re.DOTALL | re.IGNORECASE)
         if fenced:
             return fenced.group(1).strip()
@@ -129,6 +132,23 @@ class YamlValidationPipeline:
         return f'"{text}"'
 
     def _load_yaml(self, yaml_text: str) -> dict[str, Any]:
+        stripped_text = yaml_text.strip()
+        if stripped_text.startswith("{") or stripped_text.startswith("["):
+            try:
+                data = json.loads(stripped_text)
+                if not isinstance(data, dict):
+                    raise NormalizedValidationError(
+                        field="yaml",
+                        message="Top-level structured value must be an object.",
+                        expected="mapping",
+                        got=type(data).__name__,
+                        hint="Return JSON or YAML with top-level keys operation and parameters.",
+                        source="yaml",
+                    )
+                return data
+            except json.JSONDecodeError:
+                pass
+
         try:
             from yaml_serializer import SerializerSession  # type: ignore
 
@@ -184,9 +204,9 @@ class YamlValidationPipeline:
                 hint = "Use plain strings like wf.vars.field instead of {{wf.vars.field}}."
             raise NormalizedValidationError(
                 field="yaml",
-                message=f"YAML parsing failed: {exc}",
-                expected="valid YAML",
-                got="invalid YAML",
+                message=f"Structured payload parsing failed: {exc}",
+                expected="valid JSON or YAML",
+                got="invalid payload",
                 hint=hint,
                 source="yaml",
             ) from exc

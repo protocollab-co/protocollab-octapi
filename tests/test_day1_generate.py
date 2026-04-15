@@ -24,7 +24,7 @@ def test_generate_success(monkeypatch):
 
     async def fake_generate_yaml_text(prompt, context, system_prompt):
         await asyncio.sleep(0)
-        return "operation: array_last\nparameters:\n  source: wf.vars.emails\n"
+        return '{"operation":"array_last","parameters":{"source":"wf.vars.emails"}}'
 
     monkeypatch.setattr("app.main.ollama.generate_yaml_text", fake_generate_yaml_text)
     response = client.post("/generate", json={"prompt": "получи последний email"})
@@ -33,6 +33,21 @@ def test_generate_success(monkeypatch):
     assert body["is_complete"] is True
     assert body["session_id"]
     assert body["yaml"]["operation"] == "array_last"
+
+
+def test_generate_uses_json_prompt(monkeypatch):
+    client = TestClient(app)
+    captured = {}
+
+    async def fake_generate_yaml_text(prompt, context, system_prompt):
+        await asyncio.sleep(0)
+        captured["system_prompt"] = system_prompt
+        return '{"operation":"array_last","parameters":{"source":"wf.vars.emails"}}'
+
+    monkeypatch.setattr("app.main.ollama.generate_yaml_text", fake_generate_yaml_text)
+    response = client.post("/generate", json={"prompt": "получи последний email"})
+    assert response.status_code == 200
+    assert "Return only JSON" in captured["system_prompt"]
 
 
 def test_generate_schema_error(monkeypatch):

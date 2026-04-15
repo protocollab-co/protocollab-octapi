@@ -21,6 +21,10 @@ class ExecuteRequest(BaseModel):
     context: dict[str, Any] | None = None
 
 
+class ModelSelectRequest(BaseModel):
+    model: str = Field(min_length=1)
+
+
 class ValidationErrorResponse(BaseModel):
     field: str
     message: str
@@ -86,3 +90,9 @@ class HealthResponse(BaseModel):
     ollama: str
     model: str
     docker: str | None = None
+    templates_count: int | None = None
+
+
+class ModelListResponse(BaseModel):
+    active_model: str
+    models: list[str] = Field(default_factory=list)

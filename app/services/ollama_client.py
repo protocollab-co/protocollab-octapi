@@ -10,14 +10,22 @@ class OllamaClient:
         self.model = model
         self.timeout_seconds = timeout_seconds
 
-    async def health(self) -> bool:
+    async def list_models(self) -> list[str]:
         timeout = httpx.Timeout(self.timeout_seconds)
         async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
             response = await client.get(f"{self.base_url}/api/tags")
             response.raise_for_status()
             payload = response.json()
             models = payload.get("models", [])
-            return any(item.get("name", "") == self.model for item in models)
+            names = [item.get("name", "") for item in models if item.get("name")]
+            return sorted(set(names))
+
+    async def health(self) -> bool:
+        models = await self.list_models()
+        return self.model in models
+
+    def set_model(self, model: str) -> None:
+        self.model = model
 
     async def generate_yaml_text(self, prompt: str, context: dict[str, Any] | None, system_prompt: str) -> str:
         timeout = httpx.Timeout(self.timeout_seconds)

@@ -19,6 +19,8 @@ from app.models import (
     GenerateRequest,
     GenerateResponse,
     HealthResponse,
+    ModelListResponse,
+    ModelSelectRequest,
     SessionState,
 )
 from app.services.error_mapper import NormalizedValidationError
@@ -47,8 +49,10 @@ ollama = OllamaClient(
 _schema_path = str(_APP_ROOT / settings.schema_path) if not Path(settings.schema_path).is_absolute() else settings.schema_path
 pipeline = YamlValidationPipeline(schema_path=_schema_path)
 session_store = SessionStore()
-system_prompt = (_APP_ROOT / "prompts" / "yaml_generation.md").read_text(encoding="utf-8")
+json_system_prompt = (_APP_ROOT / "prompts" / "json_generation.md").read_text(encoding="utf-8")
+yaml_system_prompt = (_APP_ROOT / "prompts" / "yaml_generation.md").read_text(encoding="utf-8")
 _templates_dir = str(_APP_ROOT / settings.templates_dir) if not Path(settings.templates_dir).is_absolute() else settings.templates_dir
+_templates_count = len(list(Path(_templates_dir).glob("*.jinja2")))
 template_selector = TemplateSelector(templates_dir=_templates_dir)
 lua_codegen = LuaCodeGenerator(templates_dir=_templates_dir)
 lua_validator = LuaCodeValidator(
@@ -115,7 +119,7 @@ def _build_diagnostic_lua(raw_output: str, feedback: FeedbackItem) -> str:
     return "\n".join(lines) + "\n"
 
 
-async def _run_single_attempt(session: SessionState, prompt: str) -> GenerateResponse:
+async def _run_single_attempt(session: SessionState, prompt: str, system_prompt: str) -> GenerateResponse:
     attempt_number = session.attempts + 1
     logger.info(
         "[SESSION] session_id=%s attempt=%s/%s start",
@@ -296,12 +300,52 @@ async def health() -> HealthResponse:
         return HealthResponse(
             status="ok" if is_ready else "degraded",
             ollama="available" if is_ready else "model_not_found",
-            model=settings.ollama_model,
+            model=ollama.model,
             docker="available" if sandbox_executor.is_available() else "unavailable",
+            templates_count=_templates_count,
         )
     except HTTPError as exc:
         logger.exception("[OLLAMA] Health check failed")
         raise HTTPException(status_code=503, detail=f"Ollama unavailable: {exc}") from exc
+
+
+@app.get(
+    "/models",
+    responses={503: {"description": "Ollama unavailable"}},
+)
+async def list_models() -> ModelListResponse:
+    try:
+        models = await ollama.list_models()
+        return ModelListResponse(active_model=ollama.model, models=models)
+    except HTTPError as exc:
+        logger.exception("[OLLAMA] Model list request failed")
+        raise HTTPException(status_code=503, detail=f"Ollama unavailable: {exc}") from exc
+
+
+@app.post(
+    "/models/select",
+    responses={400: {"description": "Model not found"}, 503: {"description": "Ollama unavailable"}},
+)
+async def select_model(payload: ModelSelectRequest) -> ModelListResponse:
+    try:
+        models = await ollama.list_models()
+    except HTTPError as exc:
+        logger.exception("[OLLAMA] Model selection failed during model list request")
+        raise HTTPException(status_code=503, detail=f"Ollama unavailable: {exc}") from exc
+
+    if payload.model not in models:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "model_not_found",
+                "message": "Requested model is not available in Ollama.",
+                "model": payload.model,
+                "available_models": models,
+            },
+        )
+
+    ollama.set_model(payload.model)
+    return ModelListResponse(active_model=ollama.model, models=models)
 
 
 @app.post(
@@ -321,7 +365,7 @@ async def generate(payload: GenerateRequest) -> GenerateResponse:
         )
         session_store.create(session)
         logger.info("[SESSION] Created session_id=%s", session.session_id)
-        return await _run_single_attempt(session=session, prompt=payload.prompt)
+        return await _run_single_attempt(session=session, prompt=payload.prompt, system_prompt=json_system_prompt)
     except HTTPError as exc:
         logger.exception("[OLLAMA] Generate call failed")
         raise HTTPException(status_code=503, detail=f"Ollama request failed: {exc}") from exc
@@ -358,7 +402,7 @@ async def ask(payload: AskRequest) -> GenerateResponse:
         session.context["last_user_question"] = payload.question
 
         prompt = _build_follow_up_prompt(session=session, question=payload.question)
-        result = await _run_single_attempt(session=session, prompt=prompt)
+        result = await _run_single_attempt(session=session, prompt=prompt, system_prompt=yaml_system_prompt)
         if payload.auto_correction and not result.is_complete and session.attempts >= session.max_attempts:
             _raise_controlled_session_error(
                 status_code=409,

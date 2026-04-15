@@ -8,7 +8,7 @@ from app.main import app
 def test_ask_completes_after_clarification(monkeypatch):
     client = TestClient(app)
     responses = [
-        "operation: unknown\nparameters:\n  source: wf.vars.emails\n",
+        '{"operation":"unknown","parameters":{"source":"wf.vars.emails"}}',
         "operation: array_last\nparameters:\n  source: wf.vars.emails\n",
     ]
 
@@ -33,6 +33,33 @@ def test_ask_completes_after_clarification(monkeypatch):
     assert second_body["is_complete"] is True
     assert second_body["attempts"] == 2
     assert second_body["yaml"]["operation"] == "array_last"
+
+
+def test_ask_uses_yaml_prompt(monkeypatch):
+    client = TestClient(app)
+    captured_prompts = []
+    responses = [
+        '{"operation":"unknown","parameters":{"source":"wf.vars.emails"}}',
+        "operation: array_last\nparameters:\n  source: wf.vars.emails\n",
+    ]
+
+    async def fake_generate_yaml_text(prompt, context, system_prompt):
+        await asyncio.sleep(0)
+        captured_prompts.append(system_prompt)
+        return responses.pop(0)
+
+    monkeypatch.setattr("app.main.ollama.generate_yaml_text", fake_generate_yaml_text)
+
+    first = client.post("/generate", json={"prompt": "получи последний email"})
+    assert first.status_code == 200
+
+    second = client.post(
+        "/ask",
+        json={"session_id": first.json()["session_id"], "question": "используй operation array_last"},
+    )
+    assert second.status_code == 200
+    assert "Return only JSON" in captured_prompts[0]
+    assert "Return only YAML" in captured_prompts[1]
 
 
 def test_ask_returns_controlled_error_when_attempts_exhausted(monkeypatch):
