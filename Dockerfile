@@ -18,17 +18,21 @@ RUN test -d ./third_party/protocollab \
     || (echo "ERROR: third_party/protocollab is missing, empty, or not an installable Python package. Ensure the protocollab submodule is initialized before running docker build (for example: git submodule update --init --recursive)." >&2 && exit 1)
 RUN pip install --no-cache-dir -r requirements.txt
 
+FROM docker:cli AS dockercli
+
 # Stage 2: Runtime
 FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install runtime dependencies: git for submodule, docker CLI for sandbox execution
+# Install runtime dependencies: git for submodule support and curl for health checks
 RUN apt-get -o Acquire::ForceIPv4=true update && apt-get install -y --no-install-recommends \
     git \
-    docker.io \
     curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Reuse the Docker CLI binary without installing the full Docker engine in the container.
+COPY --from=dockercli /usr/local/bin/docker /usr/local/bin/docker
 
 # Copy installed packages from builder
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages

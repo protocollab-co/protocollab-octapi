@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   # Ollama LLM service — provides local model runtime
   ollama:
@@ -27,7 +25,7 @@ services:
       dockerfile: Dockerfile
     container_name: localscript-api
     ports:
-      - "8000:8000"
+      - "8888:8000"
     depends_on:
       ollama:
         condition: service_healthy
@@ -38,8 +36,8 @@ services:
       - OLLAMA_TIMEOUT_SECONDS=120
 
       # Sandbox Docker configuration
-      - DOCKER_IMAGE=lua:5.4-alpine
-      - SANDBOX_TIMEOUT_SECONDS=5
+      - DOCKER_IMAGE=nickblah/lua:5.4-luarocks
+      - SANDBOX_TIMEOUT_SECONDS=30
       - SANDBOX_MEMORY_MB=128
       - SANDBOX_NETWORK_MODE=none
 

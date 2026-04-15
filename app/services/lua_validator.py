@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-import os
 import subprocess
 import uuid
-from pathlib import Path
-from tempfile import NamedTemporaryFile
 
 from app.services.error_mapper import NormalizedValidationError
 
@@ -23,14 +20,8 @@ class LuaCodeValidator:
         self.network_mode = network_mode
 
     def validate_syntax(self, lua_code: str) -> None:
-        tmp_file: str | None = None
         container_name = f"octapi-luac-{uuid.uuid4().hex}"
         try:
-            with NamedTemporaryFile("w", delete=False, suffix=".lua", encoding="utf-8") as handle:
-                handle.write(lua_code)
-                tmp_file = handle.name
-            os.chmod(tmp_file, 0o644)
-
             command = [
                 "docker",
                 "run",
@@ -52,16 +43,16 @@ class LuaCodeValidator:
                 "/tmp:rw,noexec,nosuid,size=16m",
                 "--user",
                 "65534:65534",
-                "-v",
-                f"{tmp_file}:/work/script.lua:ro",
+                "-i",
                 self.docker_image,
                 "luac",
                 "-p",
-                "/work/script.lua",
+                "-",
             ]
 
             proc = subprocess.run(
                 command,
+                input=lua_code,
                 capture_output=True,
                 text=True,
                 timeout=self.timeout_seconds,
@@ -95,6 +86,3 @@ class LuaCodeValidator:
                 hint="Check generated script size and container performance.",
                 source="lua_syntax",
             ) from exc
-        finally:
-            if tmp_file is not None:
-                Path(tmp_file).unlink(missing_ok=True)

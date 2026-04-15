@@ -2,11 +2,9 @@ from __future__ import annotations
 
 from typing import Any
 from datetime import datetime, timezone
-import os
 import subprocess
 import uuid
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 
 from app.models import ExecutionResult
 from app.services.error_mapper import NormalizedValidationError
@@ -113,14 +111,8 @@ class DockerSandboxExecutor:
 
     def execute(self, lua_code: str, context: dict[str, Any] | None) -> ExecutionResult:
         script = self.build_script(lua_code=lua_code, context=context)
-        tmp_file: str | None = None
         container_name = f"octapi-sandbox-{uuid.uuid4().hex}"
         try:
-            with NamedTemporaryFile("w", delete=False, suffix=".lua", encoding="utf-8") as handle:
-                handle.write(script)
-                tmp_file = handle.name
-            os.chmod(tmp_file, 0o644)
-
             command = [
                 "docker",
                 "run",
@@ -142,14 +134,14 @@ class DockerSandboxExecutor:
                 "/tmp:rw,noexec,nosuid,size=16m",
                 "--user",
                 "65534:65534",
-                "-v",
-                f"{tmp_file}:/work/script.lua:ro",
+                "-i",
                 self.docker_image,
                 "lua",
-                "/work/script.lua",
+                "-",
             ]
             proc = subprocess.run(
                 command,
+                input=script,
                 capture_output=True,
                 text=True,
                 timeout=self.timeout_seconds,
@@ -197,6 +189,3 @@ class DockerSandboxExecutor:
                 stderr=timeout_stderr,
                 exit_code=124,
             )
-        finally:
-            if tmp_file is not None:
-                Path(tmp_file).unlink(missing_ok=True)

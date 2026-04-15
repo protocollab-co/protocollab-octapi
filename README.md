@@ -1,4 +1,4 @@
-# protocollab-octapi
+# LocalLua
 
 Локальный сервис для генерации структурированного контракта операции (operation + parameters), проверки валидности, генерации Lua-кода и безопасного выполнения в Docker sandbox.
 
@@ -21,7 +21,7 @@
 - ✅ Генерация Lua-кода по запросу на естественном языке
 - ✅ Минимум одна итерация уточнения/доработки (`/ask`)
 - ✅ Проверяемая валидация результата (schema, expression, Lua syntax, sandbox)
-- ✅ One-line запуск через `docker-compose up --build`
+- ✅ One-line запуск через `docker compose up --build`
 - ✅ C4-артефакт архитектуры в репозитории (`docs/diagrams/day5_architecture.mmd`)
 - ✅ Подготовлены артефакты презентации и демо-видео (`docs/deliverables/`)
 - ⏳ Подтвержденный peak VRAM <= 8 GB в `docs/verification/vram_measurement.md` (заполнить фактом измерения)
@@ -101,17 +101,23 @@ git submodule update --init --recursive
 2. Запустите стек:
 
 ```bash
-docker-compose up --build
+docker compose up --build
 ```
 
 3. Откройте UI:
 
-- http://localhost:8000
+- http://localhost:8888
 
 4. Остановка:
 
 ```bash
-docker-compose down
+docker compose down
+```
+
+Если legacy-команда `docker-compose` падает на Python 3.12, используйте:
+
+```bash
+./scripts/stack_up.sh
 ```
 
 ## Локальный запуск (без docker-compose)
@@ -210,7 +216,7 @@ ollama pull qwen2.5-coder:1.5b
 1. One-line запуск работает:
 
 ```bash
-docker-compose up --build
+docker compose up --build
 ```
 
 2. Локальная модель доступна:
@@ -222,13 +228,13 @@ curl -s http://localhost:11434/api/tags
 3. API здоров:
 
 ```bash
-curl -s http://localhost:8000/health
+curl -s http://localhost:8888/health
 ```
 
 4. Эталонный сценарий проходит:
 
 ```bash
-curl -sS -X POST http://localhost:8000/generate \
+curl -sS -X POST http://localhost:8888/generate \
   -H 'Content-Type: application/json' \
   -d '{"prompt":"Get last email from the list"}'
 ```
